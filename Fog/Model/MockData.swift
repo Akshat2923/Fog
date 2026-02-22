@@ -32,7 +32,7 @@ struct MockData: PreviewModifier {
         canvas3.title = "Grocery Run"
         canvas3.tags = ["personal", "food", "errand"]
 
-        let workCloud = Cloud(name: "Work", sharedTags: ["work"])
+        let workCloud = Cloud(name: "Work", cloudTags: ["work"])
         workCloud.canvases = [canvas1, canvas2]
 
         container.mainContext.insert(canvas1)

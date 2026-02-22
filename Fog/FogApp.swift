@@ -13,7 +13,7 @@ struct FogApp: App {
     var body: some Scene {
         WindowGroup {
             FogTabs()
-                .modelContainer(for: Canvas.self)
         }
+        .modelContainer(for: Canvas.self)
     }
 }

@@ -17,9 +17,9 @@ class Cloud {
     @Relationship(deleteRule: .nullify, inverse: \Canvas.cloud)
     var canvases: [Canvas]
 
-    init(name: String, sharedTags: [String]) {
+    init(name: String, cloudTags: [String]) {
         self.name = name
-        self.cloudTags = sharedTags
+        self.cloudTags = cloudTags
         self.canvases = []
         self.createdOn = .now
     }
