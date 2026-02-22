@@ -6,12 +6,14 @@
 //
 
 import SwiftUI
+import SwiftData
 
 @main
 struct FogApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            FogTabs()
+                .modelContainer(for: Canvas.self)
         }
     }
 }
