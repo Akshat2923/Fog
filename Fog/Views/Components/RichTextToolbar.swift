@@ -18,18 +18,25 @@ struct RichTextToolbar: ViewModifier {
             .toolbar {
                 ToolbarItemGroup(placement: .keyboard) {
                     Group {
+                        Button {
+                            insertBullet()
+                        } label: {
+                            Image(systemName: "list.bullet")
+                        }
                         FormatStyleButtons(text: $text, selection: $selection)
-                        Spacer()
+                        
                         Button {
                             showMoreFormatting.toggle()
                         } label: {
                             Image(systemName: "textformat.alt")
                         }
+                        Spacer()
                         Button {
                             isFocused.wrappedValue = false
                         } label: {
                             Image(systemName: "keyboard.chevron.compact.down")
                         }
+                        
                     }
                     .disabled(!isFocused.wrappedValue)
                 }
@@ -39,7 +46,18 @@ struct RichTextToolbar: ViewModifier {
                     .presentationDetents([.height(200)])
             }
     }
+    private func insertBullet() {
+        let str = String(text.characters)
+        if str.isEmpty || str.hasSuffix("\n") {
+            // Already on a fresh line, just insert bullet
+            text += AttributedString("• ")
+        } else {
+            // Start a new line then add bullet
+            text += AttributedString("\n• ")
+        }
+    }
 }
+
 
 extension View {
     func richTextToolbar(

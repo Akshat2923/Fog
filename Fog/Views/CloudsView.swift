@@ -127,6 +127,7 @@ struct CloudsView: View {
                         Image(systemName: "plus")
                     }
                     .matchedTransitionSource(id: "createCanvas", in: namespace)
+                    .buttonStyle(.glassProminent)
                 }
             }
             .modifier(FogNavigationDestinations(namespace: namespace))
@@ -211,3 +212,4 @@ private struct CloudCard: View {
     CloudsView()
         .environment(CanvasProcessor())
 }
+

@@ -35,11 +35,11 @@ final class CanvasProcessor {
         case .available:
             notAvailableReason = ""
         case .unavailable(.appleIntelligenceNotEnabled):
-            notAvailableReason = "Enable Apple Intelligence in Settings to organize notes automatically."
+            notAvailableReason = "Enable Apple Intelligence in Settings to organize canvases automatically."
         case .unavailable(.deviceNotEligible):
-            notAvailableReason = "Apple Intelligence is not available on this device."
+            notAvailableReason = "Apple Intelligence is not available on this device. Canvases will not be automatically organized."
         case .unavailable(.modelNotReady):
-            notAvailableReason = "Apple Intelligence is downloading. Notes will be organized once it's ready."
+            notAvailableReason = "Apple Intelligence is downloading. Canvases will be organized once it's ready."
         case .unavailable(let other):
             notAvailableReason = "Apple Intelligence unavailable: \(String(describing: other))"
         }
