@@ -10,9 +10,12 @@ import SwiftData
 
 @main
 struct FogApp: App {
+    @State private var processor = CanvasProcessor()
+
     var body: some Scene {
         WindowGroup {
-            FogTabs()
+            CloudsView()
+                .environment(processor)
         }
         .modelContainer(for: Canvas.self)
     }

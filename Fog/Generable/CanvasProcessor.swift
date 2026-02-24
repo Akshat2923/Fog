@@ -1,5 +1,5 @@
 //
-//  CanvasTransformer.swift
+//  CanvasProcessor.swift
 //  Fog
 //
 //  Created by Akshat  Saladi on 2/22/26.
@@ -12,10 +12,12 @@ import Observation
 
 @Observable
 @MainActor
-final class CanvasTransformer {
+final class CanvasProcessor {
     private(set) var isProcessing = false;
     private(set) var streamingSummary = ""
     private(set) var isStreamingSummary = false
+    private(set) var notAvailableReason: String = ""
+    var isModelAvailable: Bool { notAvailableReason.isEmpty }
     
     var error: Error?
     
@@ -26,6 +28,21 @@ final class CanvasTransformer {
         case existingCloud(Cloud)
         case newCloud(Canvas)
         case unassigned
+    }
+    
+    func checkAvailability() {
+        switch SystemLanguageModel.default.availability {
+        case .available:
+            notAvailableReason = ""
+        case .unavailable(.appleIntelligenceNotEnabled):
+            notAvailableReason = "Enable Apple Intelligence in Settings to organize notes automatically."
+        case .unavailable(.deviceNotEligible):
+            notAvailableReason = "Apple Intelligence is not available on this device."
+        case .unavailable(.modelNotReady):
+            notAvailableReason = "Apple Intelligence is downloading. Notes will be organized once it's ready."
+        case .unavailable(let other):
+            notAvailableReason = "Apple Intelligence unavailable: \(String(describing: other))"
+        }
     }
     
     func processCanvas(_ canvas: Canvas, context: ModelContext) async {
