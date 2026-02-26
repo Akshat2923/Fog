@@ -13,7 +13,7 @@ import Observation
 @Observable
 @MainActor
 final class CanvasProcessor {
-    private(set) var isProcessing = false;
+    private(set) var isProcessing = false
     private(set) var streamingSummary = ""
     private(set) var isStreamingSummary = false
     private(set) var notAvailableReason: String = ""

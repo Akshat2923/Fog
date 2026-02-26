@@ -22,6 +22,7 @@ struct CanvasEditorView: View {
     
     var body: some View {
         TextEditor(text: $canvas.text, selection: $selection)
+            .toolbar(.hidden, for: .tabBar)
             .contentMargins(.horizontal, 10, for: .scrollContent)
             .focused($isFocused)
             .scrollBounceBehavior(.basedOnSize)
@@ -68,23 +69,17 @@ struct CanvasEditorView: View {
                 }
             }
             .onChange(of: canvas.text) { oldValue, newValue in
-                canvas.updatedOn = .now
+               
+                guard newValue.characters.last == "\n",
+                      oldValue.characters.last != "\n" else { return }
                 
-                // Auto-continue: if user pressed Enter on a bullet line, start next bullet
                 let newStr = String(newValue.characters)
-                let oldStr = String(oldValue.characters)
-                
-                guard newStr.count > oldStr.count,      // text grew
-                      newStr.hasSuffix("\n") else { return }  // last char is newline
-                
-                // Check if the line that just ended was a bullet line
                 let linesBefore = String(newStr.dropLast()).components(separatedBy: "\n")
                 guard let lastLine = linesBefore.last,
                       lastLine.hasPrefix("• ") else { return }
                 
-                // Empty bullet line (user pressed Enter on "• " with no content) — remove it
                 if lastLine == "• " {
-                    canvas.text = AttributedString(newStr.dropLast().dropLast(2))  // strip "• \n"
+                    canvas.text = AttributedString(newStr.dropLast().dropLast(2))
                     return
                 }
                 
@@ -96,6 +91,8 @@ struct CanvasEditorView: View {
                 if isNew && canvas.text.characters.isEmpty {
                     context.delete(canvas)
                     try? context.save()
+                } else if !canvas.text.characters.isEmpty {
+                    canvas.updatedOn = .now
                 }
             }
             .onAppear {

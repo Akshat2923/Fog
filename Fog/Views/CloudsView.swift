@@ -9,51 +9,41 @@ import SwiftUI
 import SwiftData
 
 struct CloudsView: View {
-    @Environment(\.modelContext) var context
     @Environment(CanvasProcessor.self) var processor
-
+    
     @Query(sort: \Canvas.createdOn, order: .reverse)
     private var allCanvases: [Canvas]
-
+    
     @Query(sort: \Cloud.createdOn, order: .reverse)
     private var clouds: [Cloud]
-
-    private var unassigned: [Canvas] {
-        allCanvases.filter { $0.cloud == nil }
-    }
-
+    
+    // this change only shows canvas that were not in a cloud
+    //    private var unassigned: [Canvas] {
+    //        allCanvases.filter { $0.cloud == nil }
+    //    }
+    
     @State private var path = NavigationPath()
-
+    
     @Namespace private var namespace
-    @State private var showSettings = false
-
-
+    
     var body: some View {
         NavigationStack(path: $path) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 28) {
-                    if !processor.isModelAvailable {
-                        Label(processor.notAvailableReason, systemImage: "exclamationmark.triangle")
-                            .font(.footnote)
-                            .foregroundStyle(.orange)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(.orange.opacity(0.1), in: .rect(cornerRadius: 10))
-                            .padding(.horizontal)
-                    }
-
+                    ModelUnavailableBanner()
+                    
                     // unassigned
-                    if !unassigned.isEmpty {
+                    if !allCanvases.isEmpty {
                         VStack(alignment: .leading, spacing: 10) {
                             Text("Recent")
                                 .font(.headline)
                                 .padding(.horizontal)
-
+                            
                             ScrollView(.horizontal, showsIndicators: false) {
                                 HStack(spacing: 12) {
-                                    ForEach(unassigned) { canvas in
-                                        UnassignedCanvasCard(canvas: canvas, isAvailable: processor.isModelAvailable)
+                                    ForEach(allCanvases) { canvas in
+                                        UnassignedCanvasCard(canvas: canvas)
+                                            .frame(width: 160)
                                             .matchedTransitionSource(id: canvas.id, in: namespace)
                                             .onTapGesture { path.append(canvas) }
                                     }
@@ -62,14 +52,14 @@ struct CloudsView: View {
                             }
                         }
                     }
-
+                    
                     // clouds
                     if !clouds.isEmpty {
                         VStack(alignment: .leading, spacing: 10) {
                             Text("Clouds")
                                 .font(.headline)
                                 .padding(.horizontal)
-
+                            
                             LazyVGrid(
                                 columns: [GridItem(.flexible()), GridItem(.flexible())],
                                 spacing: 12
@@ -83,58 +73,26 @@ struct CloudsView: View {
                             .padding(.horizontal)
                         }
                     }
-
-                    if unassigned.isEmpty && clouds.isEmpty {
+                    
+                    if allCanvases.isEmpty && clouds.isEmpty {
                         ContentUnavailableView(
-                            "No canvases yet",
+                            "No Clouds Yet",
                             systemImage: "cloud",
                             description: Text("Tap + to create a canvas.")
                         )
                         .frame(maxWidth: .infinity)
                         .padding(.top, 60)
                     }
-
-                    if processor.isProcessing {
-                        HStack {
-                            ProgressView()
-                            Text("Organizing your note...")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        .padding(.horizontal)
-                    }
+                    
+                    ProcessingIndicator()
+                    
                 }
                 .padding(.vertical)
             }
             .navigationTitle("Fog")
             .toolbarTitleDisplayMode(.inlineLarge)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showSettings = true
-                    } label: {
-                        Image(systemName: "gear")
-                    }
-                    .matchedTransitionSource(id: "settings", in: namespace)
-                }
-                ToolbarSpacer(.flexible, placement: .bottomBar)
-                ToolbarItem(placement: .bottomBar) {
-                    Button {
-                        let newCanvas = Canvas()
-                        context.insert(newCanvas)
-                        path.append(newCanvas)
-                    } label: {
-                        Image(systemName: "plus")
-                    }
-                    .matchedTransitionSource(id: "createCanvas", in: namespace)
-                    .buttonStyle(.glassProminent)
-                }
-            }
+            .fogToolBar(namespace: namespace, path: $path)
             .modifier(FogNavigationDestinations(namespace: namespace))
-            .sheet(isPresented: $showSettings) {
-                SettingsView()
-                    .navigationTransition(.zoom(sourceID: "settings", in: namespace))
-            }
         }
         .task {
             processor.prewarm()
@@ -145,41 +103,40 @@ struct CloudsView: View {
     }
 }
 
-private struct UnassignedCanvasCard: View {
+struct UnassignedCanvasCard: View {
     let canvas: Canvas
-    let isAvailable: Bool
-
+    @Environment(CanvasProcessor.self) private var processor
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            if isAvailable {
-            
+            if processor.isModelAvailable {
                 Text(canvas.title ?? "Processing...")
                     .font(.subheadline)
                     .fontWeight(.semibold)
                     .lineLimit(1)
                     .redacted(reason: canvas.title == nil ? .placeholder : [])
             }
-
-            Text(canvas.text)
+            
+            Text(String(canvas.text.characters.prefix(200)))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(3)
-
+            
             Spacer()
-
+            
             Text(canvas.createdOn, style: .date)
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
         }
         .padding()
-        .frame(width: 160, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: 90, alignment: .leading)
         .background(.regularMaterial, in: .rect(cornerRadius: 12))
     }
 }
 
 private struct CloudCard: View {
     let cloud: Cloud
-
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
@@ -205,6 +162,39 @@ private struct CloudCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .frame(height: 130)
         .background(.regularMaterial, in: .rect(cornerRadius: 16))
+    }
+}
+
+private struct ModelUnavailableBanner: View {
+    @Environment(CanvasProcessor.self) private var processor
+    
+    var body: some View {
+        if !processor.isModelAvailable {
+            Label(processor.notAvailableReason, systemImage: "exclamationmark.triangle")
+                .font(.footnote)
+                .foregroundStyle(.orange)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(.orange.opacity(0.1), in: .rect(cornerRadius: 10))
+                .padding(.horizontal)
+        }
+    }
+}
+
+private struct ProcessingIndicator: View {
+    @Environment(CanvasProcessor.self) private var processor
+    
+    var body: some View {
+        if processor.isProcessing {
+            HStack {
+                ProgressView()
+                Text("Organizing your note...")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal)
+        }
     }
 }
 

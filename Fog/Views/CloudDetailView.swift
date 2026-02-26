@@ -13,11 +13,14 @@ struct CloudDetailView: View {
     @Environment(\.modelContext) var context
     @Environment(\.dismiss) var dismiss
     
-    
     // Namespace passed from CloudsView so canvas card zoom transitions work
     let namespace: Namespace.ID
     @Environment(CanvasProcessor.self) var processor
     @State private var showDeleteConfirm = false
+    
+    private var sortedCanvases: [Canvas] {
+        cloud.canvases.sorted { $0.createdOn > $1.createdOn }
+    }
     
     var body: some View {
         ScrollView {
@@ -31,41 +34,20 @@ struct CloudDetailView: View {
                                 .font(.caption)
                                 .padding(.horizontal, 10)
                                 .padding(.vertical, 5)
-                                .background(.tint.opacity(0.12), in: .capsule)
+                                .glassEffect(.regular.tint(.teal.opacity(0.4)))
                         }
                     }
                 }
                 
                 // AI Summary
-                VStack(alignment: .leading, spacing: 8) {
-                    Label("Summary", systemImage: "sparkles")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                    
-                    if processor.isStreamingSummary && processor.streamingSummary.isEmpty {
-                        HStack {
-                            ProgressView().controlSize(.small)
-                            Text("Generating summary...")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    } else if !processor.streamingSummary.isEmpty {
-                        Text(processor.streamingSummary)
-                            .font(.body)
-                            .animation(.easeInOut, value: processor.streamingSummary)
-                    }
-                }
-                .padding()
-                .frame(maxWidth: .infinity, alignment: .leading)
+                StreamingSummarySection()
                 
-                // Canvas list — NavigationLink(value:) lets the parent
-                // NavigationStack handle the push via navigationDestination
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Notes")
+                    Text("Canvases")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                     
-                    ForEach(cloud.canvases.sorted(by: { $0.createdOn > $1.createdOn })) { canvas in
+                    ForEach(sortedCanvases) { canvas in
                         NavigationLink(value: canvas) {
                             VStack(alignment: .leading, spacing: 6) {
                                 Text(canvas.title ?? "Untitled")
@@ -93,6 +75,7 @@ struct CloudDetailView: View {
             .padding()
             
         }
+        .toolbar(.hidden, for: .tabBar)
         .toolbar{
             ToolbarItem(placement: .topBarTrailing) {
                 Menu("Actions", systemImage: "trash") {
@@ -110,6 +93,33 @@ struct CloudDetailView: View {
         .task {
             await processor.streamSummary(for: cloud)
         }
+    }
+}
+
+private struct StreamingSummarySection: View {
+    @Environment(CanvasProcessor.self) private var processor
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Summary", systemImage: "sparkles")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            
+            if processor.isStreamingSummary && processor.streamingSummary.isEmpty {
+                HStack {
+                    ProgressView().controlSize(.small)
+                    Text("Generating summary...")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            } else if !processor.streamingSummary.isEmpty {
+                Text(processor.streamingSummary)
+                    .font(.body)
+                    .animation(.easeInOut, value: processor.streamingSummary)
+            }
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
