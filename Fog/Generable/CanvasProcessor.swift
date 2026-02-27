@@ -23,6 +23,9 @@ final class CanvasProcessor {
     
     private let generalModel = SystemLanguageModel.default
     private let taggingModel = SystemLanguageModel(useCase: .contentTagging)
+    init() {
+        checkAvailability()
+    }
     
     private enum CloudAssignment {
         case existingCloud(Cloud)
@@ -107,7 +110,7 @@ final class CanvasProcessor {
             .joined(separator: "\n\n")
         
         do {
-           
+            
             let session = LanguageModelSession(
                 instructions: "Summarize the common themes and key points across these notes in 2-3 concise sentences."
             )

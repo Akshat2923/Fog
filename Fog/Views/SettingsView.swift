@@ -36,10 +36,9 @@ struct SettingsView: View {
                     Button("Done") { dismiss() }
                 }
             }
-            .confirmationDialog(
+            .alert(
                 "Delete All Data?",
                 isPresented: $showDeleteConfirm,
-                titleVisibility: .visible
             ) {
                 Button("Delete Everything", role: .destructive) {
                     try? context.delete(model: Canvas.self)

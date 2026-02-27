@@ -30,7 +30,6 @@ struct CloudsView: View {
         NavigationStack(path: $path) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 28) {
-                    ModelUnavailableBanner()
                     
                     // unassigned
                     if !allCanvases.isEmpty {
@@ -42,10 +41,12 @@ struct CloudsView: View {
                             ScrollView(.horizontal, showsIndicators: false) {
                                 HStack(spacing: 12) {
                                     ForEach(allCanvases) { canvas in
-                                        UnassignedCanvasCard(canvas: canvas)
-                                            .frame(width: 160)
-                                            .matchedTransitionSource(id: canvas.id, in: namespace)
-                                            .onTapGesture { path.append(canvas) }
+                                        NavigationLink(value: canvas) {
+                                            UnassignedCanvasCard(canvas: canvas)
+                                                .frame(width: 160)
+                                        }
+                                        .buttonStyle(.plain)
+                                        .matchedTransitionSource(id: canvas.id, in: namespace)
                                     }
                                 }
                                 .padding(.horizontal)
@@ -65,9 +66,11 @@ struct CloudsView: View {
                                 spacing: 12
                             ) {
                                 ForEach(clouds) { cloud in
-                                    CloudCard(cloud: cloud)
-                                        .matchedTransitionSource(id: cloud.id, in: namespace)
-                                        .onTapGesture { path.append(cloud) }
+                                    NavigationLink(value: cloud) {
+                                        CloudCard(cloud: cloud)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .matchedTransitionSource(id: cloud.id, in: namespace)
                                 }
                             }
                             .padding(.horizontal)
@@ -92,14 +95,12 @@ struct CloudsView: View {
             .navigationTitle("Fog")
             .toolbarTitleDisplayMode(.inlineLarge)
             .fogToolBar(namespace: namespace, path: $path)
-            .modifier(FogNavigationDestinations(namespace: namespace))
+            .modifier(FogNavigationDestinations(namespace: namespace, path: $path))
         }
         .task {
             processor.prewarm()
         }
-        .onAppear {
-            processor.checkAvailability()
-        }
+        
     }
 }
 
@@ -165,22 +166,6 @@ private struct CloudCard: View {
     }
 }
 
-private struct ModelUnavailableBanner: View {
-    @Environment(CanvasProcessor.self) private var processor
-    
-    var body: some View {
-        if !processor.isModelAvailable {
-            Label(processor.notAvailableReason, systemImage: "exclamationmark.triangle")
-                .font(.footnote)
-                .foregroundStyle(.orange)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(.orange.opacity(0.1), in: .rect(cornerRadius: 10))
-                .padding(.horizontal)
-        }
-    }
-}
 
 private struct ProcessingIndicator: View {
     @Environment(CanvasProcessor.self) private var processor

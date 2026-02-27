@@ -11,11 +11,14 @@ import SwiftData
 struct FogTabs: View {
     @State private var selectedTab = 0
     @Environment(CanvasProcessor.self) var processor
+
     
     var body: some View {
         TabView(selection: $selectedTab) {
-            Tab("Clouds", systemImage: "smoke", value: 0) {
-                CloudsView()
+            if processor.isModelAvailable {
+                Tab("Clouds", systemImage: "smoke", value: 0) {
+                    CloudsView()
+                }
             }
             
             Tab("Library", systemImage: "rectangle.stack.fill", value: 1) {

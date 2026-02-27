@@ -6,8 +6,6 @@
 //
 
 import SwiftUI
-
-import SwiftUI
 import SwiftData
 
 struct CanvasLibraryView: View {
@@ -48,8 +46,7 @@ struct CanvasLibraryView: View {
             .navigationTitle("Library")
             .toolbarTitleDisplayMode(.inlineLarge)
             .fogToolBar(namespace: namespace, path: $path)
-            
-            .modifier(FogNavigationDestinations(namespace: namespace))
+            .modifier(FogNavigationDestinations(namespace: namespace, path: $path))
         }
     }
 }

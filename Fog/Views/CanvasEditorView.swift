@@ -10,15 +10,19 @@ import SwiftData
 
 struct CanvasEditorView: View {
     @Bindable var canvas: Canvas
-    let isNew: Bool
+    @Binding var path: NavigationPath
     
-    @Environment(\.modelContext) var context
-    @Environment(\.dismiss) var dismiss
-    @Environment(CanvasProcessor.self) var processor
+    @Environment(\.modelContext) private var context
+    @Environment(\.dismiss) private var dismiss
+    @Environment(CanvasProcessor.self) private var processor
     
     @State private var selection = AttributedTextSelection()
     @FocusState private var isFocused: Bool
-    @State private var showDeleteConfirm = false
+    @State private var hasEdited = false
+    @State private var wasNew = false
+    @State private var didManuallyProcess = false
+    
+    private var isNew: Bool { canvas.isNew == true }
     
     var body: some View {
         TextEditor(text: $canvas.text, selection: $selection)
@@ -34,42 +38,48 @@ struct CanvasEditorView: View {
                 if !isNew {
                     ToolbarItem(placement: .topBarTrailing) {
                         Menu("Actions", systemImage: "trash") {
-                            Button("Delete Canvas? ", systemImage: "trash", role: .destructive) {
+                            Button("Delete Canvas?", systemImage: "trash", role: .destructive) {
                                 context.delete(canvas)
+                                
                                 dismiss()
                             }
                         }
                         .menuIndicator(.hidden)
                     }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button {
+                            saveAndStartNew()
+                        } label: {
+                            Image(systemName: "square.and.pencil")
+                        }
+                        .buttonStyle(.glassProminent)
+                        
+                    }
                 }
-                // Custom back only needed for new canvases
                 if isNew {
                     ToolbarItem(placement: .topBarLeading) {
                         Button {
-                            if canvas.text.characters.isEmpty {
-                                context.delete(canvas)
-                                try? context.save()
-                                dismiss()
-                            } else {
-                                confirmAndDismiss()
-                            }
+                            handleDisappear()
+                            dismiss()
                         } label: {
                             Image(systemName: "chevron.backward")
                         }
                     }
-                    
                     ToolbarItem(placement: .topBarTrailing) {
                         Button {
-                            confirmAndDismiss()
+                            canvas.isNew = false
+                            isFocused = false
                         } label: {
                             Image(systemName: "checkmark")
                         }
+                        .buttonStyle(.glassProminent)
                         .disabled(canvas.text.characters.isEmpty)
                     }
                 }
             }
             .onChange(of: canvas.text) { oldValue, newValue in
-               
+                hasEdited = true
+                
                 guard newValue.characters.last == "\n",
                       oldValue.characters.last != "\n" else { return }
                 
@@ -83,40 +93,52 @@ struct CanvasEditorView: View {
                     return
                 }
                 
-                // Continue the list
                 canvas.text += AttributedString("• ")
             }
             .onDisappear {
-                // If it's a new canvas and still empty, delete it
-                if isNew && canvas.text.characters.isEmpty {
-                    context.delete(canvas)
-                    try? context.save()
-                } else if !canvas.text.characters.isEmpty {
-                    canvas.updatedOn = .now
-                }
+                handleDisappear()
             }
             .onAppear {
-                if isNew {
-                    isFocused = true
-                }
+                wasNew = isNew
+                if isNew { isFocused = true }
             }
-        
     }
     
-    private func confirmAndDismiss() {
-        dismiss()
-        if !processor.isModelAvailable { return }
-        Task {
-            await processor.processCanvas(canvas, context: context)
+    private func saveAndStartNew() {
+        didManuallyProcess = true
+        canvas.isNew = false
+        canvas.updatedOn = .now
+        if processor.isModelAvailable {
+            Task { await processor.processCanvas(canvas, context: context) }
+        }
+        let next = Canvas()
+        context.insert(next)
+        path.append(next)
+    }
+    
+    private func handleDisappear() {
+        guard !didManuallyProcess else { return }
+        if wasNew && canvas.text.characters.isEmpty {
+            context.delete(canvas)
+            try? context.save()
+        } else if wasNew {
+            // left without confirming — process on the way out
+            canvas.isNew = false
+            canvas.updatedOn = .now
+            guard processor.isModelAvailable else { return }
+            Task { await processor.processCanvas(canvas, context: context) }
+        } else if hasEdited {
+            canvas.updatedOn = .now
         }
     }
 }
 
 #Preview(traits: .mockData) {
     @Previewable @Query var canvases: [Canvas]
-    NavigationStack {
+    @Previewable @State var path = NavigationPath()
+    NavigationStack(path: $path) {
         if let first = canvases.first {
-            CanvasEditorView(canvas: first, isNew: false)
+            CanvasEditorView(canvas: first, path: $path)
                 .environment(CanvasProcessor())
         }
     }

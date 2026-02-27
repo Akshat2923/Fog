@@ -10,12 +10,12 @@ import SwiftData
 
 struct CloudDetailView: View {
     let cloud: Cloud
-    @Environment(\.modelContext) var context
-    @Environment(\.dismiss) var dismiss
-    
-    // Namespace passed from CloudsView so canvas card zoom transitions work
     let namespace: Namespace.ID
-    @Environment(CanvasProcessor.self) var processor
+    
+    @Environment(\.modelContext) private var context
+    @Environment(\.dismiss) private var dismiss
+    @Environment(CanvasProcessor.self) private var processor
+    
     @State private var showDeleteConfirm = false
     
     private var sortedCanvases: [Canvas] {

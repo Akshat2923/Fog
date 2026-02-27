@@ -8,9 +8,6 @@
 import SwiftUI
 import SwiftData
 
-import SwiftUI
-import SwiftData
-
 struct FogToolbar: ViewModifier {
     @Environment(\.modelContext) private var context
 
@@ -38,12 +35,17 @@ struct FogToolbar: ViewModifier {
                     } label: {
                         Image(systemName: "plus")
                     }
+                    .matchedTransitionSource(id: "createCanvas", in: namespace)
                     .buttonStyle(.glassProminent)
                 }
             }
             .sheet(isPresented: $showSettings) {
-                SettingsView()
-                    .navigationTransition(.zoom(sourceID: "settings", in: namespace))
+                if #available(iOS 18.0, macOS 15.0, *) {
+                    SettingsView()
+                        .navigationTransition(.zoom(sourceID: "settings", in: namespace))
+                } else {
+                    SettingsView()
+                }
             }
     }
 }
