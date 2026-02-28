@@ -49,26 +49,14 @@ struct CloudDetailView: View {
                     
                     ForEach(sortedCanvases) { canvas in
                         NavigationLink(value: canvas) {
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text(canvas.title ?? "Untitled")
-                                    .font(.subheadline)
-                                    .fontWeight(.medium)
-                                    .redacted(reason: canvas.title == nil ? .placeholder : [])
-                                
-                                Text(canvas.text)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(2)
-                                
-                                Text(canvas.updatedOn, style: .relative)
-                                    .font(.caption2)
-                                    .foregroundStyle(.tertiary)
-                            }
-                            .padding()
+                            UnassignedCanvasCard(
+                                canvas: canvas,
+                                showTitle: processor.isModelAvailable
+                            )
                             .frame(maxWidth: .infinity, alignment: .leading)
                         }
                         .buttonStyle(.plain)
-                        .matchedTransitionSource(id: canvas.id, in: namespace)
+                        //                        .matchedTransitionSource(id: canvas.id, in: namespace)
                     }
                 }
             }

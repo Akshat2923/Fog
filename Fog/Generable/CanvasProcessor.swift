@@ -96,9 +96,18 @@ final class CanvasProcessor {
         }
     }
     
-    func streamSummary(for cloud: Cloud) async {
+    func streamSummary(for cloud: Cloud, context: ModelContext? = nil) async {
         guard case .available = generalModel.availability else { return }
-        streamingSummary = ""
+        
+        let existingSummary = cloud.summary ?? ""
+        let existingSignature = cloud.summaryContentSignature ?? ""
+        let contentSignature = cloudSummarySignature(for: cloud)
+        if existingSignature == contentSignature,
+           !existingSummary.isEmpty {
+            streamingSummary = existingSummary
+            isStreamingSummary = false
+            return
+        }
         isStreamingSummary = true
         error = nil
         defer { isStreamingSummary = false }
@@ -127,6 +136,9 @@ final class CanvasProcessor {
                     streamingSummary = summary
                 }
             }
+            cloud.summary = streamingSummary
+            cloud.summaryContentSignature = contentSignature
+            try context?.save()
         } catch {
             self.error = error
         }
@@ -214,5 +226,18 @@ final class CanvasProcessor {
             .map { $0.lowercased() }
     }
     
-    
+    // I hate this need a better way
+    private func cloudSummarySignature(for cloud: Cloud) -> String {
+        cloud.canvases
+            .sorted(by: { (lhs: Canvas, rhs: Canvas) in
+                if lhs.createdOn == rhs.createdOn {
+                    return lhs.updatedOn < rhs.updatedOn
+                }
+                return lhs.createdOn < rhs.createdOn
+            })
+            .map {
+                "\($0.createdOn.timeIntervalSinceReferenceDate):\($0.updatedOn.timeIntervalSinceReferenceDate)"
+            }
+            .joined(separator: "|")
+    }
 }

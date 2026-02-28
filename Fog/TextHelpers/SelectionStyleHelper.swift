@@ -47,37 +47,43 @@ enum SelectionState {
     ) {
         let containers = selectedAttributeContainers(text: text, selection: &selection)
         
-        func collapsed(_ values: [Bool]) -> ToggleState {
-            guard !values.isEmpty else { return .off }  
-            return values.allSatisfy { $0 } ? .on : .off
+        guard !containers.isEmpty else {
+            return (.off, .off, .off, .off, .off, .off, .off, .off, .off, .off, .off, .off)
         }
-        
-        let boldValues: [Bool] = containers.map { resolveTraits($0.font ?? .default).isBold }
-        let italicValues: [Bool] = containers.map { resolveTraits($0.font ?? .default).isItalic }
-        let underlineValues: [Bool] = containers.map { $0.underlineStyle == .single }
-        let strikeValues: [Bool] = containers.map { $0.strikethroughStyle == .single }
-        let leftAlignmentValues: [Bool] = containers.map { $0.alignment == .left}
-        let centerAlignmentValues: [Bool] = containers.map { $0.alignment == .center}
-        let rightAlignmentValues: [Bool] = containers.map { $0.alignment == .right}
-        let extraLargeFontValues: [Bool] = containers.map { $0.font == .title}
-        let largeFontValues: [Bool] = containers.map { $0.font == .title2}
-        let mediumlineFontValues: [Bool] = containers.map { $0.font == .title3}
-        let bodyFontValues: [Bool] = containers.map { $0.font == .body}
-        let footnoteFontValues: [Bool] = containers.map { $0.font == .footnote}
-        
+
+        var allBold = true, allItalic = true, allUnderline = true, allStrike = true
+        var allLeft = true, allCenter = true, allRight = true
+        var allExtraLarge = true, allLarge = true, allMedium = true, allBody = true, allFootnote = true
+
+        for container in containers {
+            let traits = resolveTraits(container.font ?? .default)
+            if !traits.isBold { allBold = false }
+            if !traits.isItalic { allItalic = false }
+            if container.underlineStyle != .single { allUnderline = false }
+            if container.strikethroughStyle != .single { allStrike = false }
+            if container.alignment != .left { allLeft = false }
+            if container.alignment != .center { allCenter = false }
+            if container.alignment != .right { allRight = false }
+            if container.font != .title { allExtraLarge = false }
+            if container.font != .title2 { allLarge = false }
+            if container.font != .title3 { allMedium = false }
+            if container.font != .body { allBody = false }
+            if container.font != .footnote { allFootnote = false }
+        }
+
         return (
-            bold: collapsed(boldValues),
-            italic: collapsed(italicValues),
-            underline: collapsed(underlineValues),
-            strikethrough: collapsed(strikeValues),
-            leftAlignment: collapsed(leftAlignmentValues),
-            centerAlignment: collapsed(centerAlignmentValues),
-            rightAlignment: collapsed(rightAlignmentValues),
-            extraLargeFont: collapsed(extraLargeFontValues),
-            largeFont: collapsed(largeFontValues),
-            mediumFont: collapsed(mediumlineFontValues),
-            bodyFont: collapsed(bodyFontValues),
-            footnoteFont: collapsed(footnoteFontValues)
+            bold: allBold ? .on : .off,
+            italic: allItalic ? .on : .off,
+            underline: allUnderline ? .on : .off,
+            strikethrough: allStrike ? .on : .off,
+            leftAlignment: allLeft ? .on : .off,
+            centerAlignment: allCenter ? .on : .off,
+            rightAlignment: allRight ? .on : .off,
+            extraLargeFont: allExtraLarge ? .on : .off,
+            largeFont: allLarge ? .on : .off,
+            mediumFont: allMedium ? .on : .off,
+            bodyFont: allBody ? .on : .off,
+            footnoteFont: allFootnote ? .on : .off
         )
     }
     

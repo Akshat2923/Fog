@@ -39,14 +39,17 @@ struct CloudsView: View {
                                 .padding(.horizontal)
                             
                             ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 12) {
+                                LazyHStack(spacing: 12) {
                                     ForEach(allCanvases) { canvas in
                                         NavigationLink(value: canvas) {
-                                            UnassignedCanvasCard(canvas: canvas)
-                                                .frame(width: 160)
+                                            UnassignedCanvasCard(
+                                                canvas: canvas,
+                                                showTitle: processor.isModelAvailable
+                                            )
+                                            .frame(width: 160)
                                         }
                                         .buttonStyle(.plain)
-                                        .matchedTransitionSource(id: canvas.id, in: namespace)
+//                                        .matchedTransitionSource(id: canvas.id, in: namespace)
                                     }
                                 }
                                 .padding(.horizontal)
@@ -70,7 +73,7 @@ struct CloudsView: View {
                                         CloudCard(cloud: cloud)
                                     }
                                     .buttonStyle(.plain)
-                                    .matchedTransitionSource(id: cloud.id, in: namespace)
+//                                    .matchedTransitionSource(id: cloud.id, in: namespace)
                                 }
                             }
                             .padding(.horizontal)
@@ -106,11 +109,11 @@ struct CloudsView: View {
 
 struct UnassignedCanvasCard: View {
     let canvas: Canvas
-    @Environment(CanvasProcessor.self) private var processor
-    
+    var showTitle: Bool = true
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            if processor.isModelAvailable {
+            if showTitle {
                 Text(canvas.title ?? "Processing...")
                     .font(.subheadline)
                     .fontWeight(.semibold)
@@ -174,7 +177,7 @@ private struct ProcessingIndicator: View {
         if processor.isProcessing {
             HStack {
                 ProgressView()
-                Text("Organizing your note...")
+                Text("Canvas is searching for a Cloud...")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

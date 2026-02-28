@@ -10,8 +10,6 @@ import SwiftUI
 import SwiftData
 
 struct FogNavigationDestinations: ViewModifier {
-    @Environment(\.modelContext) private var context
-    @Environment(CanvasProcessor.self) private var processor
     let namespace: Namespace.ID
     @Binding var path: NavigationPath
 

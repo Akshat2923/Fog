@@ -32,12 +32,10 @@ struct CanvasLibraryView: View {
                     ) {
                         ForEach(allCanvases) { canvas in
                             NavigationLink(value: canvas) {
-                                UnassignedCanvasCard(
-                                    canvas: canvas,
-                                )
+                                UnassignedCanvasCard(canvas: canvas)
                             }
                             .buttonStyle(.plain)
-                            .matchedTransitionSource(id: canvas.id, in: namespace)
+//                            .matchedTransitionSource(id: canvas.id, in: namespace)
                         }
                     }
                     .padding(.horizontal, 8)

@@ -12,6 +12,8 @@ import SwiftData
 class Cloud {
     var name: String
     var cloudTags: [String]
+    var summary: String?
+    var summaryContentSignature: String?
     var createdOn: Date
 
     @Relationship(deleteRule: .nullify, inverse: \Canvas.cloud)
@@ -20,7 +22,10 @@ class Cloud {
     init(name: String, cloudTags: [String]) {
         self.name = name
         self.cloudTags = cloudTags
+        self.summary = nil
+        self.summaryContentSignature = nil
         self.canvases = []
         self.createdOn = .now
     }
 }
+

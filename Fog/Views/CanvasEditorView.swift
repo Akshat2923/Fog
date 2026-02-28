@@ -83,17 +83,28 @@ struct CanvasEditorView: View {
                 guard newValue.characters.last == "\n",
                       oldValue.characters.last != "\n" else { return }
                 
-                let newStr = String(newValue.characters)
-                let linesBefore = String(newStr.dropLast()).components(separatedBy: "\n")
-                guard let lastLine = linesBefore.last,
-                      lastLine.hasPrefix("• ") else { return }
-                
-                if lastLine == "• " {
-                    canvas.text = AttributedString(newStr.dropLast().dropLast(2))
+                let chars = newValue.characters
+                let contentBeforeNewline = chars.dropLast()
+                guard let lastNewline = contentBeforeNewline.lastIndex(of: "\n") else {
+                    let lastLine = String(contentBeforeNewline)
+                    if lastLine.hasPrefix("• ") {
+                        if lastLine == "• " {
+                            canvas.text = AttributedString(String(chars.dropLast().dropLast(2)))
+                        } else {
+                            canvas.text += AttributedString("• ")
+                        }
+                    }
                     return
                 }
                 
-                canvas.text += AttributedString("• ")
+                let lastLine = String(contentBeforeNewline[contentBeforeNewline.index(after: lastNewline)...])
+                guard lastLine.hasPrefix("• ") else { return }
+                
+                if lastLine == "• " {
+                    canvas.text = AttributedString(String(chars.dropLast().dropLast(2)))
+                } else {
+                    canvas.text += AttributedString("• ")
+                }
             }
             .onDisappear {
                 handleDisappear()
