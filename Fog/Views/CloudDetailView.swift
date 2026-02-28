@@ -34,7 +34,7 @@ struct CloudDetailView: View {
                                 .font(.caption)
                                 .padding(.horizontal, 10)
                                 .padding(.vertical, 5)
-                                .glassEffect(.regular.tint(.teal.opacity(0.4)))
+                                .glassEffect(.regular.tint(.accentColor.opacity(0.3)))
                         }
                     }
                 }

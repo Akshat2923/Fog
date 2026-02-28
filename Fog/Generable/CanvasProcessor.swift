@@ -18,6 +18,7 @@ final class CanvasProcessor {
     private(set) var isStreamingSummary = false
     private(set) var notAvailableReason: String = ""
     var isModelAvailable: Bool { notAvailableReason.isEmpty }
+    private(set) var userFacingErrorMessage: String?
     
     var error: Error?
     
@@ -53,6 +54,7 @@ final class CanvasProcessor {
         guard case .available = generalModel.availability else { return }
         
         isProcessing = true
+        
         error = nil
         
         defer { isProcessing = false }
@@ -68,9 +70,8 @@ final class CanvasProcessor {
                 let result = try await generateTitle(for: canvas)
                 canvas.title = result.title
                 
-                // clouds are ever changing over time
-                let overlap = Set(canvas.tags).intersection(Set(cloud.cloudTags))
-                cloud.cloudTags = Array(Set(cloud.cloudTags).union(overlap))
+                // Keep cloud tags evolving as new canvases are added.
+                cloud.cloudTags = Array(Set(cloud.cloudTags).union(Set(canvas.tags)))
                 cloud.canvases.append(canvas)
                 
             case .newCloud(let sibling):
@@ -93,6 +94,26 @@ final class CanvasProcessor {
             
         } catch {
             self.error = error
+            setUserFacingErrorMessage(from: error, operation: "organize your note")
+            
+        }
+    }
+    func rebuildClouds(context: ModelContext) async {
+        guard case .available = generalModel.availability else { return }
+        error = nil
+        userFacingErrorMessage = nil
+        
+        do {
+            let canvases = try context.fetch(FetchDescriptor<Canvas>())
+                .sorted { $0.createdOn < $1.createdOn }
+            
+            for canvas in canvases {
+                await processCanvas(canvas, context: context)
+            }
+        } catch {
+            self.error = error
+            setUserFacingErrorMessage(from: error, operation: "rebuild clouds")
+            
         }
     }
     
@@ -108,8 +129,12 @@ final class CanvasProcessor {
             isStreamingSummary = false
             return
         }
+        
+        streamingSummary = existingSummary
         isStreamingSummary = true
         error = nil
+        userFacingErrorMessage = nil
+        
         defer { isStreamingSummary = false }
         
         // Convert each canvas's AttributedString to plain String for the prompt.
@@ -136,12 +161,18 @@ final class CanvasProcessor {
                     streamingSummary = summary
                 }
             }
+            
             cloud.summary = streamingSummary
             cloud.summaryContentSignature = contentSignature
             try context?.save()
         } catch {
             self.error = error
+            setUserFacingErrorMessage(from: error, operation: "generate a summary")
+            
         }
+    }
+    func clearUserFacingError() {
+        userFacingErrorMessage = nil
     }
     
     func prewarm() {
@@ -155,11 +186,18 @@ final class CanvasProcessor {
         guard !canvasTags.isEmpty else { return .unassigned }
         
         let allClouds = try context.fetch(FetchDescriptor<Cloud>())
+        var bestCloud: Cloud?
+        var bestCloudScore = 0.0
         for cloud in allClouds {
-            // is there an intersection in both sets, and not empty
-            if !canvasTags.intersection(Set(cloud.cloudTags)).isEmpty {
-                return .existingCloud(cloud)
+            let score = similarityScore(between: canvasTags, and: Set(cloud.cloudTags))
+            if score > bestCloudScore {
+                bestCloudScore = score
+                bestCloud = cloud
             }
+        }
+        
+        if let bestCloud {
+            return .existingCloud(bestCloud)
         }
         
         // No existing cloud matched. Look for an unassigned canvas to pair with.
@@ -170,10 +208,18 @@ final class CanvasProcessor {
             && !$0.tags.isEmpty   // has tags to compare against
         }
         
+        var bestSibling: Canvas?
+        var bestSiblingScore = 0.0
         for other in unassigned {
-            if !canvasTags.intersection(Set(other.tags)).isEmpty {
-                return .newCloud(other)
+            let score = similarityScore(between: canvasTags, and: Set(other.tags))
+            if score > bestSiblingScore {
+                bestSiblingScore = score
+                bestSibling = other
             }
+        }
+        
+        if let bestSibling {
+            return .newCloud(bestSibling)
         }
         
         return .unassigned
@@ -226,7 +272,6 @@ final class CanvasProcessor {
             .map { $0.lowercased() }
     }
     
-    // I hate this need a better way
     private func cloudSummarySignature(for cloud: Cloud) -> String {
         cloud.canvases
             .sorted(by: { (lhs: Canvas, rhs: Canvas) in
@@ -239,5 +284,74 @@ final class CanvasProcessor {
                 "\($0.createdOn.timeIntervalSinceReferenceDate):\($0.updatedOn.timeIntervalSinceReferenceDate)"
             }
             .joined(separator: "|")
+    }
+    
+    /// Returns 0 for "not similar enough", otherwise a score where larger is better.
+    private func similarityScore(
+        between lhs: Set<String>,
+        and rhs: Set<String>
+    ) -> Double {
+        let intersection = lhs.intersection(rhs)
+        let overlapCount = intersection.count
+        
+        guard overlapCount > 0 else { return 0 }
+        
+        let unionCount = lhs.union(rhs).count
+        guard unionCount > 0 else { return 0 }
+        
+        let jaccard = Double(overlapCount) / Double(unionCount)
+        let relativeToSmaller = Double(overlapCount) / Double(min(lhs.count, rhs.count))
+        
+        // Require meaningful overlap, not just any single shared tag.
+        let passesThreshold = overlapCount >= 2 || relativeToSmaller >= 0.6
+        guard passesThreshold else { return 0 }
+        
+        // Favor denser overlap while still rewarding absolute evidence.
+        return jaccard + (Double(overlapCount) * 0.05)
+    }
+    
+    private func setUserFacingErrorMessage(from error: Error, operation: String) {
+        guard let generationError = error as? LanguageModelSession.GenerationError else {
+            userFacingErrorMessage = "Couldn't \(operation): \(error.localizedDescription)"
+            return
+        }
+        
+        let baseMessage: String
+        switch generationError {
+        case .guardrailViolation:
+            baseMessage = "Couldn't \(operation) because the request was blocked by safety guardrails."
+        case .decodingFailure:
+            baseMessage = "Couldn't \(operation) because the model returned an unexpected response format."
+        case .rateLimited:
+            baseMessage = "Couldn't \(operation) right now because the model is rate limited. Please try again in a moment."
+        case .exceededContextWindowSize(_):
+            baseMessage = "Couldn't \(operation): \(generationError.localizedDescription)"
+
+        case .assetsUnavailable(_):
+            baseMessage = "Couldn't \(operation): \(generationError.localizedDescription)"
+
+        case .unsupportedGuide(_):
+            baseMessage = "Couldn't \(operation): \(generationError.localizedDescription)"
+
+        case .unsupportedLanguageOrLocale(_):
+            baseMessage = "Couldn't \(operation): \(generationError.localizedDescription)"
+
+        case .concurrentRequests(_):
+            baseMessage = "Couldn't \(operation): \(generationError.localizedDescription)"
+
+        case .refusal(_, _):
+            baseMessage = "Couldn't \(operation): \(generationError.localizedDescription)"
+
+        @unknown default:
+            baseMessage = "Couldn't \(operation): \(generationError.localizedDescription)"
+        }
+        
+        let failureReason = generationError.failureReason ?? ""
+        let recoverySuggestion = generationError.recoverySuggestion ?? ""
+        let extras = [failureReason, recoverySuggestion]
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n")
+        
+        userFacingErrorMessage = extras.isEmpty ? baseMessage : "\(baseMessage)\n\(extras)"
     }
 }

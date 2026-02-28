@@ -10,6 +10,7 @@ import SwiftData
 
 struct CloudsView: View {
     @Environment(CanvasProcessor.self) var processor
+    @Environment(\.modelContext) private var context
     
     @Query(sort: \Canvas.createdOn, order: .reverse)
     private var allCanvases: [Canvas]
@@ -32,30 +33,30 @@ struct CloudsView: View {
                 VStack(alignment: .leading, spacing: 28) {
                     
                     // unassigned
-                    if !allCanvases.isEmpty {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text("Recent")
-                                .font(.headline)
-                                .padding(.horizontal)
-                            
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                LazyHStack(spacing: 12) {
-                                    ForEach(allCanvases) { canvas in
-                                        NavigationLink(value: canvas) {
-                                            UnassignedCanvasCard(
-                                                canvas: canvas,
-                                                showTitle: processor.isModelAvailable
-                                            )
-                                            .frame(width: 160)
-                                        }
-                                        .buttonStyle(.plain)
-//                                        .matchedTransitionSource(id: canvas.id, in: namespace)
-                                    }
-                                }
-                                .padding(.horizontal)
-                            }
-                        }
-                    }
+//                    if !allCanvases.isEmpty {
+//                        VStack(alignment: .leading, spacing: 10) {
+//                            Text("Recent")
+//                                .font(.headline)
+//                                .padding(.horizontal)
+//                            
+//                            ScrollView(.horizontal, showsIndicators: false) {
+//                                LazyHStack(spacing: 12) {
+//                                    ForEach(allCanvases) { canvas in
+//                                        NavigationLink(value: canvas) {
+//                                            UnassignedCanvasCard(
+//                                                canvas: canvas,
+//                                                showTitle: processor.isModelAvailable
+//                                            )
+//                                            .frame(width: 160)
+//                                        }
+//                                        .buttonStyle(.plain)
+//                                        //                                        .matchedTransitionSource(id: canvas.id, in: namespace)
+//                                    }
+//                                }
+//                                .padding(.horizontal)
+//                            }
+//                        }
+//                    }
                     
                     // clouds
                     if !clouds.isEmpty {
@@ -73,7 +74,7 @@ struct CloudsView: View {
                                         CloudCard(cloud: cloud)
                                     }
                                     .buttonStyle(.plain)
-//                                    .matchedTransitionSource(id: cloud.id, in: namespace)
+                                    //                                    .matchedTransitionSource(id: cloud.id, in: namespace)
                                 }
                             }
                             .padding(.horizontal)
@@ -98,6 +99,18 @@ struct CloudsView: View {
             .navigationTitle("Fog")
             .toolbarTitleDisplayMode(.inlineLarge)
             .fogToolBar(namespace: namespace, path: $path)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu("Actions", systemImage: "bubbles.and.sparkles.fill") {
+                        Button("Rebuild Clouds? May take a moment.", systemImage: "bubbles.and.sparkles.fill") {
+                            Task {
+                                await processor.rebuildClouds(context: context)
+                            }
+                        }
+                        .disabled(processor.isProcessing || !processor.isModelAvailable)
+                    }
+                }
+            }
             .modifier(FogNavigationDestinations(namespace: namespace, path: $path))
         }
         .task {
@@ -110,7 +123,7 @@ struct CloudsView: View {
 struct UnassignedCanvasCard: View {
     let canvas: Canvas
     var showTitle: Bool = true
-
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             if showTitle {

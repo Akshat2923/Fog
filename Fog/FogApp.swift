@@ -14,7 +14,7 @@ struct FogApp: App {
     @AppStorage("accentColor") private var accentColor: Color = .primary
     @AppStorage("useFullTint") private var useFullTint: Bool = false
     @State private var showingAlert = false
-
+    
     var body: some Scene {
         WindowGroup {
             FogTabs()
@@ -30,7 +30,24 @@ struct FogApp: App {
                 .onAppear {
                     showingAlert = !processor.isModelAvailable
                 }
-
+                .alert(
+                    "Couldn't Complete AI Action",
+                    isPresented: Binding(
+                        get: { processor.userFacingErrorMessage != nil },
+                        set: { isPresented in
+                            if !isPresented {
+                                processor.clearUserFacingError()
+                            }
+                        }
+                    )
+                ) {
+                    Button("OK", role: .cancel) {
+                        processor.clearUserFacingError()
+                    }
+                } message: {
+                    Text(processor.userFacingErrorMessage ?? "An unknown error occurred.")
+                }
+            
         }
         .modelContainer(for: Canvas.self)
     }
