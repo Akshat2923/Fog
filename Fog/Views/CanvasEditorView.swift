@@ -30,7 +30,7 @@ struct CanvasEditorView: View {
             .contentMargins(.horizontal, 10, for: .scrollContent)
             .focused($isFocused)
             .scrollBounceBehavior(.basedOnSize)
-            .navigationTitle(isNew ? "New Canvas" : (canvas.title ?? "Canvas"))
+            .navigationTitle(canvas.title ?? (isNew || wasNew ? "New Canvas" : "Canvas"))
             .toolbarTitleDisplayMode(.inline)
             .navigationBarBackButtonHidden(isNew)
             .richTextToolbar(text: $canvas.text, selection: $selection, isFocused: $isFocused)
@@ -68,7 +68,12 @@ struct CanvasEditorView: View {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button {
                             canvas.isNew = false
+                            canvas.updatedOn = .now
                             isFocused = false
+                            didManuallyProcess = true
+                            if processor.isModelAvailable {
+                                Task { await processor.processCanvas(canvas, context: context) }
+                            }
                         } label: {
                             Image(systemName: "checkmark")
                         }

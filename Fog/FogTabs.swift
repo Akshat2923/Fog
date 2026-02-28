@@ -25,7 +25,7 @@ struct FogTabs: View {
                 CanvasLibraryView()
             }
             Tab("Search", systemImage: "sparkle.magnifyingglass", value: 2, role: .search) {
-                Text("Search Coming Soon...")
+                Text("Search Coming soon")
             }
             
         }

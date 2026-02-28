@@ -19,6 +19,8 @@ final class CanvasProcessor {
     private(set) var notAvailableReason: String = ""
     var isModelAvailable: Bool { notAvailableReason.isEmpty }
     private(set) var userFacingErrorMessage: String?
+    private(set) var cloudGroups: [CloudGroup] = []
+    private(set) var isGeneratingGroups = false
     
     var error: Error?
     
@@ -66,28 +68,21 @@ final class CanvasProcessor {
             switch assignment {
                 
             case .existingCloud(let cloud):
-                // existing cloud, canvas only needs a title
-                let result = try await generateTitle(for: canvas)
-                canvas.title = result.title
-                
-                // Keep cloud tags evolving as new canvases are added.
                 cloud.cloudTags = Array(Set(cloud.cloudTags).union(Set(canvas.tags)))
-                cloud.canvases.append(canvas)
+                if !cloud.canvases.contains(canvas) {
+                    cloud.canvases.append(canvas)
+                }
+                try await streamTitle(into: canvas)
                 
             case .newCloud(let sibling):
-                let result = try await generateTitleAndCloudName(for: canvas, sibling: sibling)
-                canvas.title = result.title
-                
-                // The sharedTags are what the two canvases have in common
                 let sharedTags = Array(Set(canvas.tags).intersection(Set(sibling.tags)))
-                let newCloud = Cloud(name: result.cloudName, cloudTags: sharedTags)
-                
+                let newCloud = Cloud(name: "", cloudTags: sharedTags)
                 context.insert(newCloud)
                 newCloud.canvases = [canvas, sibling]
+                try await streamTitleAndCloudName(into: canvas, cloud: newCloud, sibling: sibling)
                 
             case .unassigned:
-                let result = try await generateTitle(for: canvas)
-                canvas.title = result.title
+                try await streamTitle(into: canvas)
             }
             
             try context.save()
@@ -104,6 +99,11 @@ final class CanvasProcessor {
         userFacingErrorMessage = nil
         
         do {
+            let existingClouds = try context.fetch(FetchDescriptor<Cloud>())
+            for cloud in existingClouds {
+                context.delete(cloud)
+            }
+            try context.save()
             let canvases = try context.fetch(FetchDescriptor<Canvas>())
                 .sorted { $0.createdOn < $1.createdOn }
             
@@ -144,18 +144,25 @@ final class CanvasProcessor {
             .joined(separator: "\n\n")
         
         do {
-            
             let session = LanguageModelSession(
-                instructions: "Summarize the common themes and key points across these notes in 2-3 concise sentences."
+                instructions: Instructions {
+                    "You are the summarizer in Fog, a note-taking app."
+                    "Related notes (canvases) are organized into groups called clouds."
+                    
+                            """
+                            Summarize the contents of a cloud by highlighting the common themes, \
+                            key ideas, and connections across its canvases in 2–3 concise sentences.
+                            """
+                }
             )
             
             let stream = session.streamResponse(
                 generating: CloudSummary.self,
                 includeSchemaInPrompt: false
             ) {
+                "This cloud contains \(cloud.canvases.count) canvases:"
                 canvasTexts
             }
-            
             for try await partial in stream {
                 if let summary = partial.content.summary {
                     streamingSummary = summary
@@ -226,34 +233,60 @@ final class CanvasProcessor {
     }
     
     // Generates a title only. Used when joining an existing cloud or staying unassigned.
-    private func generateTitle(for canvas: Canvas) async throws -> CanvasTitle {
+    private func streamTitle(into canvas: Canvas) async throws {
         let session = LanguageModelSession(
-            instructions: "You are a concise assistant for a note-taking app. Generate a short title that captures the essence of the note."
+            instructions: Instructions {
+                "You are the organizing assistant in Fog, a note-taking app."
+                "The user writes freeform notes called canvases."
+                
+                        """
+                        Read the canvas below and generate a short, memorable title \
+                        that captures the main topic or intent of the note.
+                        """
+            }
         )
-        let response = try await session.respond(
-            to: String(canvas.text.characters),
-            generating: CanvasTitle.self
-        )
-        return response.content
+        let text = String(canvas.text.characters)
+        let stream = session.streamResponse(generating: CanvasTitle.self) {
+            "Here is the canvas to title:"
+            text
+        }
+        for try await partial in stream {
+            if let title = partial.content.title {
+                canvas.title = title
+            }
+        }
     }
     
     // Used only when a new cloud is being formed — sibling provides naming context.
-    private func generateTitleAndCloudName(for canvas: Canvas, sibling: Canvas) async throws -> CanvasAndCloudMetadata {
+    private func streamTitleAndCloudName(into canvas: Canvas, cloud: Cloud, sibling: Canvas) async throws {
         let session = LanguageModelSession(
-            instructions: "You are a concise assistant for a note-taking app. Generate a title for the new note and a group name that captures what both notes have in common."
-        )
-        let prompt = """
-                New note:
-                \(String(canvas.text.characters))
+            instructions: Instructions {
+                "You are the organizing assistant in Fog, a note-taking app."
+                "Notes are called canvases. Related canvases are grouped into clouds."
                 
-                Similar existing note:
-                \(String(sibling.text.characters.prefix(200)))
-                """
-        let response = try await session.respond(
-            to: prompt,
-            generating: CanvasAndCloudMetadata.self
+                    """
+                    Two canvases share a common theme. Generate a title for the new \
+                    canvas and a cloud name that captures what both canvases have in common.
+                    """
+            }
         )
-        return response.content
+        let canvasText = String(canvas.text.characters)
+        let siblingText = String(sibling.text.characters.prefix(200))
+        let stream = session.streamResponse(generating: CanvasAndCloudMetadata.self) {
+            "New canvas:"
+            canvasText
+            
+            "Existing related canvas:"
+            siblingText
+        }
+        for try await partial in stream {
+            if let title = partial.content.title {
+                canvas.title = title
+            }
+            if let name = partial.content.cloudName {
+                cloud.name = name
+            }
+        }
     }
     
     // Generates tags using the specialized content tagging model.
@@ -261,7 +294,16 @@ final class CanvasProcessor {
     private func generateTags(for canvas: Canvas) async throws -> [String] {
         let session = LanguageModelSession(
             model: taggingModel,
-            instructions: "Identify the most significant topics and concepts."
+            instructions: Instructions {
+                "You are analyzing a note in Fog, a note-taking app."
+                
+                    """
+                    Identify the core topics and specific concepts in this note \
+                    so it can be automatically grouped with similar notes. \
+                    Be specific rather than generic — prefer 'Python programming' \
+                    over just 'technology'.
+                    """
+            }
         )
         let response = try await session.respond(
             to: String(canvas.text.characters),
@@ -286,7 +328,6 @@ final class CanvasProcessor {
             .joined(separator: "|")
     }
     
-    /// Returns 0 for "not similar enough", otherwise a score where larger is better.
     private func similarityScore(
         between lhs: Set<String>,
         and rhs: Set<String>
@@ -310,6 +351,119 @@ final class CanvasProcessor {
         return jaccard + (Double(overlapCount) * 0.05)
     }
     
+    func buildCloudGroups(from clouds: [Cloud]) async {
+        guard clouds.count >= 2 else {
+            cloudGroups = []
+            return
+        }
+        
+        let newGroups = computeGroups(from: clouds)
+        
+        var updatedGroups = newGroups
+        for i in updatedGroups.indices {
+            let newSig = groupSignature(updatedGroups[i])
+            if let existing = cloudGroups.first(where: { groupSignature($0) == newSig }) {
+                updatedGroups[i].id = existing.id
+                updatedGroups[i].name = existing.name
+                updatedGroups[i].groupDescription = existing.groupDescription
+            }
+        }
+        cloudGroups = updatedGroups
+        
+        guard case .available = generalModel.availability else { return }
+        
+        let needsGeneration = cloudGroups.enumerated().filter { $0.element.name == nil }
+        guard !needsGeneration.isEmpty else { return }
+        
+        isGeneratingGroups = true
+        defer { isGeneratingGroups = false }
+        
+        for (i, _) in needsGeneration {
+            do {
+                try await streamGroupMetadata(at: i)
+            } catch {
+                cloudGroups[i].name = cloudGroups[i].sharedTags.prefix(3).joined(separator: " · ")
+            }
+        }
+    }
+    
+    private func groupSignature(_ group: CloudGroup) -> String {
+        group.clouds.map(\.name).sorted().joined(separator: "|")
+    }
+    
+    private func computeGroups(from clouds: [Cloud]) -> [CloudGroup] {
+        let n = clouds.count
+        var parent = Array(0..<n)
+        
+        func find(_ x: Int) -> Int {
+            var x = x
+            while parent[x] != x { parent[x] = parent[parent[x]]; x = parent[x] }
+            return x
+        }
+        
+        func union(_ a: Int, _ b: Int) {
+            let ra = find(a), rb = find(b)
+            if ra != rb { parent[ra] = rb }
+        }
+        
+        for i in 0..<n {
+            for j in (i + 1)..<n {
+                let tagsA = Set(clouds[i].cloudTags)
+                let tagsB = Set(clouds[j].cloudTags)
+                if !tagsA.intersection(tagsB).isEmpty {
+                    union(i, j)
+                }
+            }
+        }
+        
+        var groupMap: [Int: [Int]] = [:]
+        for i in 0..<n {
+            groupMap[find(i), default: []].append(i)
+        }
+        
+        return groupMap.values
+            .filter { $0.count >= 2 }
+            .map { indices in
+                let groupClouds = indices.map { clouds[$0] }
+                let sharedTags = groupClouds
+                    .reduce(Set(groupClouds[0].cloudTags)) { $0.intersection(Set($1.cloudTags)) }
+                return CloudGroup(clouds: groupClouds, sharedTags: Array(sharedTags))
+            }
+            .sorted { $0.clouds.count > $1.clouds.count }
+    }
+    
+    private func streamGroupMetadata(at index: Int) async throws {
+        let group = cloudGroups[index]
+        let session = LanguageModelSession(
+            instructions: Instructions {
+                "You are the organizing assistant in Fog, a note-taking app."
+                "Notes (canvases) are organized into groups called clouds by theme."
+                "Multiple related clouds form a higher-level cloud group."
+                
+                    """
+                    Generate a name and description for a cloud group that captures \
+                    the overarching theme connecting its clouds.
+                    """
+            }
+        )
+        let cloudSummaries = group.clouds
+            .map { "Cloud '\($0.name)' — tags: \($0.cloudTags.joined(separator: ", "))" }
+            .joined(separator: "\n")
+        let stream = session.streamResponse(generating: CloudGroupMetadata.self) {
+            "These clouds share common themes:"
+            cloudSummaries
+            
+            "Their shared tags are: \(group.sharedTags.joined(separator: ", "))"
+        }
+        for try await partial in stream {
+            if let name = partial.content.name {
+                cloudGroups[index].name = name
+            }
+            if let desc = partial.content.groupDescription {
+                cloudGroups[index].groupDescription = desc
+            }
+        }
+    }
     private func setUserFacingErrorMessage(from error: Error, operation: String) {
         guard let generationError = error as? LanguageModelSession.GenerationError else {
             userFacingErrorMessage = "Couldn't \(operation): \(error.localizedDescription)"
@@ -326,22 +480,22 @@ final class CanvasProcessor {
             baseMessage = "Couldn't \(operation) right now because the model is rate limited. Please try again in a moment."
         case .exceededContextWindowSize(_):
             baseMessage = "Couldn't \(operation): \(generationError.localizedDescription)"
-
+            
         case .assetsUnavailable(_):
             baseMessage = "Couldn't \(operation): \(generationError.localizedDescription)"
-
+            
         case .unsupportedGuide(_):
             baseMessage = "Couldn't \(operation): \(generationError.localizedDescription)"
-
+            
         case .unsupportedLanguageOrLocale(_):
             baseMessage = "Couldn't \(operation): \(generationError.localizedDescription)"
-
+            
         case .concurrentRequests(_):
             baseMessage = "Couldn't \(operation): \(generationError.localizedDescription)"
-
+            
         case .refusal(_, _):
             baseMessage = "Couldn't \(operation): \(generationError.localizedDescription)"
-
+            
         @unknown default:
             baseMessage = "Couldn't \(operation): \(generationError.localizedDescription)"
         }

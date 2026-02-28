@@ -19,7 +19,7 @@ struct FogToolbar: ViewModifier {
     func body(content: Content) -> some View {
         content
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .destructiveAction) {
                     Button {
                         showSettings = true
                     } label: {
