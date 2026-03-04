@@ -9,7 +9,7 @@ import Foundation
 import FoundationModels
 
 
-@Generable()
+@Generable
 struct CanvasTags {
     @Guide(
         description: "Core topics in the note, like 'machine learning', 'vacation planning', or 'recipe'.",

@@ -21,6 +21,8 @@ struct CanvasEditorView: View {
     @State private var hasEdited = false
     @State private var wasNew = false
     @State private var didManuallyProcess = false
+    @State var isShowingDeleteConfirmation: Bool = false
+    
     
     private var isNew: Bool { canvas.isNew == true }
     
@@ -37,6 +39,27 @@ struct CanvasEditorView: View {
             .toolbar {
                 if !isNew {
                     ToolbarItem(placement: .topBarTrailing) {
+//                        Button(role: .destructive) {
+//                            isShowingDeleteConfirmation = true
+//                        } label: {
+//                            Image(systemName: "trash")
+//                                .foregroundStyle(.red)
+//                        }
+//                        .confirmationDialog("Delete?", isPresented: $isShowingDeleteConfirmation) {
+//                            Button(role: .destructive) {
+//                                // Remove collection from model data
+//                                context.delete(canvas)
+//                                dismiss()
+//                            } label: {
+//                                Text("Delete")
+//                            }
+//                            Button("Keep") {
+//                                isShowingDeleteConfirmation = false
+//                            }
+//                        } message: {
+//                            Text("Are you sure you want to delete ‘\(canvas.title ?? "")’. This cannot be undone.")
+//                        }
+                        
                         Menu("Actions", systemImage: "trash") {
                             Button("Delete Canvas?", systemImage: "trash", role: .destructive) {
                                 context.delete(canvas)
@@ -44,7 +67,6 @@ struct CanvasEditorView: View {
                                 dismiss()
                             }
                         }
-                        .menuIndicator(.hidden)
                     }
                     ToolbarItem(placement: .confirmationAction) {
                         Button {
@@ -120,6 +142,8 @@ struct CanvasEditorView: View {
             }
     }
     
+    
+    // TODO: Clean up tech debt
     private func saveAndStartNew() {
         didManuallyProcess = true
         canvas.isNew = false
@@ -145,6 +169,8 @@ struct CanvasEditorView: View {
             Task { await processor.processCanvas(canvas, context: context) }
         } else if hasEdited {
             canvas.updatedOn = .now
+            guard processor.isModelAvailable else { return }
+            Task { await processor.processCanvas(canvas, context: context) }
         }
     }
 }
@@ -159,3 +185,4 @@ struct CanvasEditorView: View {
         }
     }
 }
+

@@ -49,13 +49,15 @@ struct CloudDetailView: View {
                     
                     ForEach(sortedCanvases) { canvas in
                         NavigationLink(value: canvas) {
-                            UnassignedCanvasCard(
+                            CanvasCard(
                                 canvas: canvas,
                                 showTitle: processor.isModelAvailable
                             )
                             .frame(maxWidth: .infinity, alignment: .leading)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.automatic)
+                        .foregroundStyle(Color(.label))
+
                         //                        .matchedTransitionSource(id: canvas.id, in: namespace)
                     }
                 }

@@ -14,6 +14,7 @@ struct SettingsView: View {
     @State private var showDeleteConfirm = false
     @AppStorage("accentColor") private var accentColor: Color = .primary
     @AppStorage("useFullTint") private var useFullTint: Bool = false
+    @AppStorage("meshOpacityScale") private var meshOpacityScale: Double = 1.0
     
     var body: some View {
         NavigationStack {
@@ -21,6 +22,24 @@ struct SettingsView: View {
                 Section(header: Text("Appearance")) {
                     ColorPicker("Accent Color", selection: $accentColor)
                     Toggle("Apply as full app tint?", isOn: $useFullTint)
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("Background Intensity")
+                            Spacer()
+                            Text(String(format: "%.0f%%", meshOpacityScale * 100))
+                                .foregroundStyle(.secondary)
+                                .monospacedDigit()
+                                .accessibilityHidden(true)
+                        }
+                        Slider(value: $meshOpacityScale, in: 0...2, step: 0.05) {
+                            Text("Background Intensity")
+                        } minimumValueLabel: {
+                            Image(systemName: "sun.min")
+                        } maximumValueLabel: {
+                            Image(systemName: "sun.max")
+                        }
+                        .accessibilityLabel("Background intensity")
+                    }
                 }
                 
                 Section(header: Text("Data"), footer: Text("This permanently deletes all canvases and clouds.")) {

@@ -17,6 +17,9 @@ struct FogApp: App {
     
     var body: some Scene {
         WindowGroup {
+            
+            
+            
             FogTabs()
                 .environment(processor)
                 .accentColor(accentColor)
@@ -47,6 +50,7 @@ struct FogApp: App {
                 } message: {
                     Text(processor.userFacingErrorMessage ?? "An unknown error occurred.")
                 }
+            
             
         }
         .modelContainer(for: Canvas.self)

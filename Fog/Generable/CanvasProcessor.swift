@@ -36,6 +36,10 @@ final class CanvasProcessor {
         case unassigned
     }
     
+    private(set) var streamingSuggestion = ""
+    private(set) var isStreamingSuggestion = false
+    private(set) var suggestionCanvasId: PersistentIdentifier?
+    
     func checkAvailability() {
         switch SystemLanguageModel.default.availability {
         case .available:
@@ -99,11 +103,6 @@ final class CanvasProcessor {
         userFacingErrorMessage = nil
         
         do {
-            let existingClouds = try context.fetch(FetchDescriptor<Cloud>())
-            for cloud in existingClouds {
-                context.delete(cloud)
-            }
-            try context.save()
             let canvases = try context.fetch(FetchDescriptor<Canvas>())
                 .sorted { $0.createdOn < $1.createdOn }
             
@@ -178,6 +177,7 @@ final class CanvasProcessor {
             
         }
     }
+    
     func clearUserFacingError() {
         userFacingErrorMessage = nil
     }
@@ -392,7 +392,9 @@ final class CanvasProcessor {
     }
     
     private func computeGroups(from clouds: [Cloud]) -> [CloudGroup] {
-        let n = clouds.count
+        let safeClouds = clouds.filter { !$0.cloudTags.isEmpty } // filter empties
+        let n = safeClouds.count
+        guard n >= 2 else { return [] }
         var parent = Array(0..<n)
         
         func find(_ x: Int) -> Int {
@@ -410,7 +412,9 @@ final class CanvasProcessor {
             for j in (i + 1)..<n {
                 let tagsA = Set(clouds[i].cloudTags)
                 let tagsB = Set(clouds[j].cloudTags)
-                if !tagsA.intersection(tagsB).isEmpty {
+                let shared = tagsA.intersection(tagsB)
+                let relativeOverlap = Double(shared.count) / Double(min(tagsA.count, tagsB.count))
+                if shared.count >= 2 || relativeOverlap >= 0.5 {
                     union(i, j)
                 }
             }
@@ -464,6 +468,7 @@ final class CanvasProcessor {
             }
         }
     }
+    
     private func setUserFacingErrorMessage(from error: Error, operation: String) {
         guard let generationError = error as? LanguageModelSession.GenerationError else {
             userFacingErrorMessage = "Couldn't \(operation): \(error.localizedDescription)"

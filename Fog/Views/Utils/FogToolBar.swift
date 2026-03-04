@@ -40,12 +40,9 @@ struct FogToolbar: ViewModifier {
                 }
             }
             .sheet(isPresented: $showSettings) {
-                if #available(iOS 18.0, macOS 15.0, *) {
-                    SettingsView()
-                        .navigationTransition(.zoom(sourceID: "settings", in: namespace))
-                } else {
-                    SettingsView()
-                }
+                SettingsView()
+                    .navigationTransition(.zoom(sourceID: "settings", in: namespace))
+                    .presentationDetents([.medium, .large])
             }
     }
 }
