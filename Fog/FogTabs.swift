@@ -28,6 +28,7 @@ struct FogTabs: View {
                 SearchView()
             }
             
+            
         }
         .tabBarMinimizeBehavior(.onScrollDown)
     }

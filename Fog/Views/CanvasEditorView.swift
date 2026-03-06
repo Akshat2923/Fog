@@ -15,7 +15,6 @@ struct CanvasEditorView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @Environment(CanvasProcessor.self) private var processor
-    
     @State private var selection = AttributedTextSelection()
     @FocusState private var isFocused: Bool
     @State private var hasEdited = false
@@ -37,29 +36,9 @@ struct CanvasEditorView: View {
             .navigationBarBackButtonHidden(isNew)
             .richTextToolbar(text: $canvas.text, selection: $selection, isFocused: $isFocused)
             .toolbar {
+         
                 if !isNew {
-                    ToolbarItem(placement: .topBarTrailing) {
-//                        Button(role: .destructive) {
-//                            isShowingDeleteConfirmation = true
-//                        } label: {
-//                            Image(systemName: "trash")
-//                                .foregroundStyle(.red)
-//                        }
-//                        .confirmationDialog("Delete?", isPresented: $isShowingDeleteConfirmation) {
-//                            Button(role: .destructive) {
-//                                // Remove collection from model data
-//                                context.delete(canvas)
-//                                dismiss()
-//                            } label: {
-//                                Text("Delete")
-//                            }
-//                            Button("Keep") {
-//                                isShowingDeleteConfirmation = false
-//                            }
-//                        } message: {
-//                            Text("Are you sure you want to delete ‘\(canvas.title ?? "")’. This cannot be undone.")
-//                        }
-                        
+                    ToolbarItem(placement: .bottomBar) {
                         Menu("Actions", systemImage: "trash") {
                             Button("Delete Canvas?", systemImage: "trash", role: .destructive) {
                                 context.delete(canvas)

@@ -9,7 +9,14 @@ import SwiftUI
 
 struct MeshGradientBackground: View {
     @AppStorage("meshOpacityScale") private var meshOpacityScale: Double = 1.0
-
+    @AppStorage("rainbowRave") private var rainbowRave: Bool = false
+    
+    private let raveColors: [Color] = [
+        Color.RainbowRave.mandy, Color.RainbowRave.redRibbon, Color.RainbowRave.ecstasy,
+        Color.RainbowRave.tonysPink, Color.RainbowRave.mediumPurple, Color.RainbowRave.fuchsiaPink,
+        Color.RainbowRave.wisteria, Color.RainbowRave.cornflowerBlue, Color.RainbowRave.danube
+    ]
+    
     var body: some View {
         MeshGradient(
             width: 3,
@@ -19,7 +26,7 @@ struct MeshGradientBackground: View {
                 [0.0, 0.5], [0.5, 0.5], [1.0, 0.5],
                 [0.0, 1.0], [0.5, 1.0], [1.0, 1.0]
             ],
-            colors: [
+            colors: rainbowRave ? raveColors : [
                 Color.accentColor.opacity(min(1.0, 0.2 * meshOpacityScale)), Color.accentColor.opacity(min(1.0, 0.3 * meshOpacityScale)), Color.accentColor.opacity(min(1.0, 0.2 * meshOpacityScale)),
                 Color.accentColor.opacity(min(1.0, 0.1 * meshOpacityScale)), Color.accentColor.opacity(min(1.0, 0.1 * meshOpacityScale)), Color.accentColor.opacity(min(1.0, 0.1 * meshOpacityScale)),
                 Color.accentColor.opacity(min(1.0, 0.2 * meshOpacityScale)), Color.accentColor.opacity(min(1.0, 0.3 * meshOpacityScale)), Color.accentColor.opacity(min(1.0, 0.2 * meshOpacityScale))
@@ -28,6 +35,7 @@ struct MeshGradientBackground: View {
         .ignoresSafeArea()
         .blur(radius: 50)
         .animation(.easeInOut(duration: 0.2), value: meshOpacityScale)
+        .animation(.easeInOut(duration: 0.4), value: rainbowRave)
     }
 }
 

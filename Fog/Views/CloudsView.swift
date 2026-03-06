@@ -164,7 +164,7 @@ struct CloudsView: View {
               
             .navigationTitle(selected == 0 ? "Summary" : "Graph")
             .toolbarTitleDisplayMode(.inline)
-            .navigationSubtitle(Date.now.formatted(.dateTime.weekday(.wide).month(.abbreviated).day()))
+            .navigationSubtitle(Date.now.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()))
             .toolbar {
                 
                 ToolbarItem(placement: .topBarTrailing) {

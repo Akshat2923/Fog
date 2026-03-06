@@ -72,7 +72,9 @@ final class CanvasProcessor {
             switch assignment {
                 
             case .existingCloud(let cloud):
-                cloud.cloudTags = Array(Set(cloud.cloudTags).union(Set(canvas.tags)))
+                // Only grow cloud with tags that were already relevant to it
+                let overlap = Set(canvas.tags).intersection(Set(cloud.cloudTags))
+                cloud.cloudTags = Array(Set(cloud.cloudTags).union(overlap))
                 if !cloud.canvases.contains(canvas) {
                     cloud.canvases.append(canvas)
                 }
@@ -139,19 +141,14 @@ final class CanvasProcessor {
         // Convert each canvas's AttributedString to plain String for the prompt.
         let canvasTexts = cloud.canvases
             .enumerated()
-            .map { "Canvas \($0.offset + 1): \(String($0.element.text.characters.prefix(500)))" }
+            .map { "Canvas \($0.offset + 1): \(String($0.element.text.characters.prefix(200)))" }
             .joined(separator: "\n\n")
         
         do {
             let session = LanguageModelSession(
                 instructions: Instructions {
-                    "You are the summarizer in Fog, a note-taking app."
-                    "Related notes (canvases) are organized into groups called clouds."
-                    
-                            """
-                            Summarize the contents of a cloud by highlighting the common themes, \
-                            key ideas, and connections across its canvases in 2–3 concise sentences.
-                            """
+                    "You are an expert summarizer."
+                    "Summarize the common themes across these notes in 2-3 sentences."
                 }
             )
             
@@ -203,9 +200,12 @@ final class CanvasProcessor {
             }
         }
         
-        if let bestCloud {
-            return .existingCloud(bestCloud)
-        }
+        if let bestCloud, bestCloudScore >= 0.25 {
+                // Only union the overlapping tags — don't let cloud absorb unrelated tags
+                let overlap = canvasTags.intersection(Set(bestCloud.cloudTags))
+                bestCloud.cloudTags = Array(Set(bestCloud.cloudTags).union(overlap))
+                return .existingCloud(bestCloud)
+            }
         
         // No existing cloud matched. Look for an unassigned canvas to pair with.
         let allCanvases = try context.fetch(FetchDescriptor<Canvas>())
@@ -236,13 +236,8 @@ final class CanvasProcessor {
     private func streamTitle(into canvas: Canvas) async throws {
         let session = LanguageModelSession(
             instructions: Instructions {
-                "You are the organizing assistant in Fog, a note-taking app."
-                "The user writes freeform notes called canvases."
-                
-                        """
-                        Read the canvas below and generate a short, memorable title \
-                        that captures the main topic or intent of the note.
-                        """
+                "You are an expert note organizer."
+                "Generate a short title that captures the main topic of the note."
             }
         )
         let text = String(canvas.text.characters)
@@ -259,59 +254,61 @@ final class CanvasProcessor {
     
     // Used only when a new cloud is being formed — sibling provides naming context.
     private func streamTitleAndCloudName(into canvas: Canvas, cloud: Cloud, sibling: Canvas) async throws {
-        let session = LanguageModelSession(
-            instructions: Instructions {
-                "You are the organizing assistant in Fog, a note-taking app."
-                "Notes are called canvases. Related canvases are grouped into clouds."
-                
-                    """
-                    Two canvases share a common theme. Generate a title for the new \
-                    canvas and a cloud name that captures what both canvases have in common.
-                    """
-            }
-        )
         let canvasText = String(canvas.text.characters)
         let siblingText = String(sibling.text.characters.prefix(200))
-        let stream = session.streamResponse(generating: CanvasAndCloudMetadata.self) {
-            "New canvas:"
-            canvasText
-            
-            "Existing related canvas:"
-            siblingText
+
+        // Session 1 — title only
+        let titleSession = LanguageModelSession(
+            instructions: Instructions {
+                "You are an expert note organizer."
+                "Generate a short title, 2-5 words, for the note below."
+            }
+        )
+        let titleStream = titleSession.streamResponse(generating: CanvasTitle.self) {
+            "Note: \(canvasText)"
         }
-        for try await partial in stream {
+        for try await partial in titleStream {
             if let title = partial.content.title {
                 canvas.title = title
             }
+        }
+
+        // Session 2 — cloud name only, informed by both titles
+        let cloudSession = LanguageModelSession(
+            instructions: Instructions {
+                "You are an expert note organizer."
+                "Generate a short group name, 1-3 words, that captures what two notes have in common."
+            }
+        )
+        let cloudStream = cloudSession.streamResponse(generating: CloudName.self) {
+            "Note 1: \(canvas.title ?? canvasText)"
+            "Note 2: \(sibling.title ?? siblingText)"
+        }
+        for try await partial in cloudStream {
             if let name = partial.content.cloudName {
                 cloud.name = name
             }
         }
     }
-    
     // Generates tags using the specialized content tagging model.
     // This is always a separate session because it uses a different model entirely.
     private func generateTags(for canvas: Canvas) async throws -> [String] {
+        let text = String(canvas.text.characters)
         let session = LanguageModelSession(
             model: taggingModel,
-            instructions: Instructions {
-                "You are analyzing a note in Fog, a note-taking app."
-                
-                    """
-                    Identify the core topics and specific concepts in this note \
-                    so it can be automatically grouped with similar notes. \
-                    Be specific rather than generic — prefer 'Python programming' \
-                    over just 'technology'.
-                    """
-            }
+            instructions: text.count < 100
+                ? "Provide the 3 most significant topics."
+                : "Provide the 3 most significant topics and 3 most significant objects."
         )
         let response = try await session.respond(
             to: String(canvas.text.characters),
             generating: CanvasTags.self
         )
         
-        return (response.content.topics + response.content.objects)
-            .map { $0.lowercased() }
+        return Array(Set(
+            (response.content.topics + response.content.objects)
+                .map { $0.lowercased() }
+        ))
     }
     
     private func cloudSummarySignature(for cloud: Cloud) -> String {
@@ -438,31 +435,42 @@ final class CanvasProcessor {
     
     private func streamGroupMetadata(at index: Int) async throws {
         let group = cloudGroups[index]
-        let session = LanguageModelSession(
-            instructions: Instructions {
-                "You are the organizing assistant in Fog, a note-taking app."
-                "Notes (canvases) are organized into groups called clouds by theme."
-                "Multiple related clouds form a higher-level cloud group."
-                
-                    """
-                    Generate a name and description for a cloud group that captures \
-                    the overarching theme connecting its clouds.
-                    """
-            }
-        )
+        
         let cloudSummaries = group.clouds
             .map { "Cloud '\($0.name)' — tags: \($0.cloudTags.joined(separator: ", "))" }
             .joined(separator: "\n")
-        let stream = session.streamResponse(generating: CloudGroupMetadata.self) {
-            "These clouds share common themes:"
+        let sharedTagsText = group.sharedTags.joined(separator: ", ")
+
+        // Session 1 — name only
+        let nameSession = LanguageModelSession(
+            instructions: Instructions {
+                "You are an expert note organizer."
+                "Generate a short group name, 1-3 words, for a collection of related note groups."
+            }
+        )
+        let nameStream = nameSession.streamResponse(generating: CloudGroupName.self) {
+            "These note groups share these tags: \(sharedTagsText)"
             cloudSummaries
-            
-            "Their shared tags are: \(group.sharedTags.joined(separator: ", "))"
         }
-        for try await partial in stream {
+        for try await partial in nameStream {
             if let name = partial.content.name {
                 cloudGroups[index].name = name
             }
+        }
+
+        // Session 2 — description only, can reference the name we just generated
+        let descSession = LanguageModelSession(
+            instructions: Instructions {
+                "You are an expert note organizer."
+                "Write one sentence describing what a collection of note groups have in common."
+            }
+        )
+        let descStream = descSession.streamResponse(generating: CloudGroupDescription.self) {
+            "Group name: \(cloudGroups[index].name ?? sharedTagsText)"
+            "Shared tags: \(sharedTagsText)"
+            cloudSummaries
+        }
+        for try await partial in descStream {
             if let desc = partial.content.groupDescription {
                 cloudGroups[index].groupDescription = desc
             }

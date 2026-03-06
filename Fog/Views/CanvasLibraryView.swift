@@ -37,7 +37,8 @@ struct CanvasLibraryView: View {
                                 NavigationLink(value: canvas) {
                                     CanvasCard(canvas: canvas)
                                 }
-                                .buttonStyle(.automatic)                      .foregroundStyle(Color(.label))
+                                .buttonStyle(.automatic)
+                                .foregroundStyle(Color(.label))
                                 
                             }
                         }
@@ -47,7 +48,7 @@ struct CanvasLibraryView: View {
             }
             .navigationTitle("Library")
             .toolbarTitleDisplayMode(.inlineLarge)
-            .navigationSubtitle(Date.now.formatted(.dateTime.weekday(.wide).month(.abbreviated).day()))
+            .navigationSubtitle(Date.now.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()))
             .fogToolBar(namespace: namespace, path: $path)
             .modifier(FogNavigationDestinations(namespace: namespace, path: $path))
         }

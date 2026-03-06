@@ -17,9 +17,6 @@ struct FogApp: App {
     
     var body: some Scene {
         WindowGroup {
-            
-            
-            
             FogTabs()
                 .environment(processor)
                 .accentColor(accentColor)

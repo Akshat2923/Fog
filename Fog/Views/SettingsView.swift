@@ -15,16 +15,18 @@ struct SettingsView: View {
     @AppStorage("accentColor") private var accentColor: Color = .primary
     @AppStorage("useFullTint") private var useFullTint: Bool = false
     @AppStorage("meshOpacityScale") private var meshOpacityScale: Double = 1.0
+    @AppStorage("rainbowRave") private var rainbowRave: Bool = false
     
     var body: some View {
         NavigationStack {
             List {
                 Section(header: Text("Appearance")) {
                     ColorPicker("Accent Color", selection: $accentColor)
-                    Toggle("Apply as full app tint?", isOn: $useFullTint)
+                    Toggle("Apply as Tint Color?", isOn: $useFullTint)
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
                             Text("Background Intensity")
+                                .foregroundStyle(rainbowRave ? .secondary : .primary)
                             Spacer()
                             Text(String(format: "%.0f%%", meshOpacityScale * 100))
                                 .foregroundStyle(.secondary)
@@ -38,8 +40,11 @@ struct SettingsView: View {
                         } maximumValueLabel: {
                             Image(systemName: "sun.max")
                         }
+                        .disabled(rainbowRave)
                         .accessibilityLabel("Background intensity")
                     }
+                    Toggle("Rainbow Rave", isOn: $rainbowRave)
+
                 }
                 
                 Section(header: Text("Data"), footer: Text("This permanently deletes all canvases and clouds.")) {
@@ -70,4 +75,3 @@ struct SettingsView: View {
         }
     }
 }
-
