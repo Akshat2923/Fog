@@ -11,6 +11,7 @@ import SwiftData
 struct FogTabs: View {
     @State private var selectedTab = 0
     @Environment(CanvasProcessor.self) var processor
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     
     var body: some View {
@@ -30,7 +31,23 @@ struct FogTabs: View {
             
             
         }
-        .tabBarMinimizeBehavior(.onScrollDown)
+        .applyTabBarMinimizeBehaviorIfAvailable()
+        .tabViewStyle(.sidebarAdaptable)
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func applyTabBarMinimizeBehaviorIfAvailable() -> some View {
+        #if os(iOS)
+        if #available(iOS 26.0, *) {
+            self.tabBarMinimizeBehavior(.onScrollDown)
+        } else {
+            self
+        }
+        #else
+        self
+        #endif
     }
 }
 

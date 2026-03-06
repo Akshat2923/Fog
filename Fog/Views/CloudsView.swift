@@ -18,11 +18,6 @@ struct CloudsView: View {
     @Query(sort: \Cloud.createdOn, order: .reverse)
     private var clouds: [Cloud]
     
-    private var ungroupedClouds: [Cloud] {
-        let grouped = Set(processor.cloudGroups.flatMap(\.clouds))
-        return clouds.filter { !grouped.contains($0) }
-    }
-    
     private var cloudGroupTrigger: Int {
         var hasher = Hasher()
         for cloud in clouds {
@@ -42,7 +37,7 @@ struct CloudsView: View {
         NavigationStack(path: $path) {
             ZStack {
                 MeshGradientBackground()
-            
+                
                 VStack{
                     if (selected == 0) {
                         ScrollView {
@@ -75,29 +70,7 @@ struct CloudsView: View {
                                         .padding(.horizontal)
                                     }
                                 }
-                                // ungrouped clouds
-                                if !ungroupedClouds.isEmpty {
-                                    VStack(alignment: .leading, spacing: 12) {
-                                        Text("Clouds For You")
-                                            .font(.headline)
-                                            .padding(.horizontal)
-                                        
-                                        LazyVGrid(
-                                            columns: [GridItem(.flexible()), GridItem(.flexible())],
-                                            spacing: 12
-                                        ) {
-                                            ForEach(ungroupedClouds) { cloud in
-                                                NavigationLink(value: cloud) {
-                                                    CloudCard(cloud: cloud)
-                                                }
-                                                .buttonStyle(.automatic)
-                                                .foregroundStyle(Color(.label))
-                                                
-                                            }
-                                        }
-                                        .padding(.horizontal)
-                                    }
-                                }
+                                
                                 // cloud groups
                                 if !processor.cloudGroups.isEmpty {
                                     ForEach(processor.cloudGroups) { group in
@@ -135,6 +108,28 @@ struct CloudsView: View {
                                         }
                                     }
                                 }
+                                if !clouds.isEmpty {
+                                    VStack(alignment: .leading, spacing: 12) {
+                                        Text("Clouds For You")
+                                            .font(.headline)
+                                            .padding(.horizontal)
+                                        
+                                        LazyVGrid(
+                                            columns: [GridItem(.flexible()), GridItem(.flexible())],
+                                            spacing: 12
+                                        ) {
+                                            ForEach(clouds) { cloud in
+                                                NavigationLink(value: cloud) {
+                                                    CloudCard(cloud: cloud)
+                                                }
+                                                .buttonStyle(.automatic)
+                                                .foregroundStyle(Color(.label))
+                                                
+                                            }
+                                        }
+                                        .padding(.horizontal)
+                                    }
+                                }
                                 
                                 if allCanvases.isEmpty && clouds.isEmpty {
                                     ContentUnavailableView(
@@ -154,14 +149,15 @@ struct CloudsView: View {
                             
                         }
                     } else {
-                        Text("Graph View Coming Soon...")
-                            .font(.headline)
-                        Text("Visualize your canvases and clouds in 3D")
-                            .font(.caption)
+                        GraphView(canvases: allCanvases, clouds: clouds, cloudGroups: processor.cloudGroups)
+                            .toolbar(.hidden, for: .tabBar)
+
+                        
+                        
                     }
                 }
             }
-              
+            
             .navigationTitle(selected == 0 ? "Summary" : "Graph")
             .toolbarTitleDisplayMode(.inline)
             .navigationSubtitle(Date.now.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()))
@@ -177,22 +173,30 @@ struct CloudsView: View {
                 }
                 .sharedBackgroundVisibility(.hidden)
                 
+                
                 ToolbarItem(placement: .topBarTrailing) {
-                    Menu("Actions", systemImage: "bubbles.and.sparkles") {
-                        Button("Rebuild Clouds? May take a moment.", systemImage: "bubbles.and.sparkles") {
-                            Task {
-                                await processor.rebuildClouds(context: context)
+                    if (processor.isProcessing){
+                        ProgressView()
+                        
+                    } else {
+                        Menu("Actions", systemImage: "bubbles.and.sparkles") {
+                            Button("Rebuild Clouds? May take a moment.", systemImage: "bubbles.and.sparkles") {
+                                Task {
+                                    await processor.rebuildClouds(context: context)
+                                }
                             }
                         }
                     }
-                    .disabled(processor.isProcessing || !processor.isModelAvailable)
                 }
                 
+                
                 ToolbarSpacer(.fixed, placement: .topBarTrailing)
+                
+                
             }
             
             .fogToolBar(namespace: namespace, path: $path)
-            
+    
             .modifier(FogNavigationDestinations(namespace: namespace, path: $path))
         }
         .task {

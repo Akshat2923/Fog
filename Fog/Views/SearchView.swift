@@ -73,13 +73,11 @@ struct SearchView: View {
                 }
 
             }
-            .navigationTitle("Search Anything")
+            .navigationTitle("Search")
             .toolbarTitleDisplayMode(.inlineLarge)
             .navigationSubtitle(Date.now.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()))
-
             .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search anything")
             .scrollDismissesKeyboard(.interactively)
-            .fogToolBar(namespace: namespace, path: $path)
             .modifier(FogNavigationDestinations(namespace: namespace, path: $path))
         }
     }

@@ -31,13 +31,21 @@ struct CanvasEditorView: View {
             .contentMargins(.horizontal, 10, for: .scrollContent)
             .focused($isFocused)
             .scrollBounceBehavior(.basedOnSize)
-            .navigationTitle(canvas.title ?? (isNew || wasNew ? "New Canvas" : "Canvas"))
+            .navigationTitle("")
             .toolbarTitleDisplayMode(.inline)
             .navigationBarBackButtonHidden(isNew)
             .richTextToolbar(text: $canvas.text, selection: $selection, isFocused: $isFocused)
             .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Text(canvas.title ?? ((isNew || wasNew) ? "New Canvas" : "Canvas"))
+                        .font(.headline)
+                        .contentTransition(.opacity)
+                        .animation(.easeInOut, value: canvas.title)
+                        .redacted(reason: canvas.title == nil ? .placeholder : [])
+                }
          
                 if !isNew {
+                    ToolbarSpacer(.flexible, placement: .bottomBar)
                     ToolbarItem(placement: .bottomBar) {
                         Menu("Actions", systemImage: "trash") {
                             Button("Delete Canvas?", systemImage: "trash", role: .destructive) {
