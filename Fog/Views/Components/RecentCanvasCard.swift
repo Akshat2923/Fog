@@ -30,7 +30,7 @@ struct RecentCanvasCard: View {
                 Text(canvas.updatedOn.formatted(.dateTime.month(.abbreviated).day()))
                     .font(.footnote)
                     .lineLimit(1)
-
+                
                 
                 Spacer()
                 
@@ -43,17 +43,8 @@ struct RecentCanvasCard: View {
             }
         }
         .padding()
-//        .glassEffect(.regular.tint(.accentColor.opacity(0.1)).interactive())
-        .glassEffect(
-            .regular.tint(
-                .accentColor.opacity(
-                    0.3
-                )
-            ).interactive(),
-            in: .rect(
-                cornerRadius: 34
-            )
-        )
+        .glassEffect(.regular.interactive(), in: .capsule)
+       
     }
 }
 

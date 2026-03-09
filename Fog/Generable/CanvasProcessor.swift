@@ -102,9 +102,18 @@ final class CanvasProcessor {
     func rebuildClouds(context: ModelContext) async {
         guard case .available = generalModel.availability else { return }
         error = nil
-        userFacingErrorMessage = nil
         
         do {
+            let allCanvases = try context.fetch(FetchDescriptor<Canvas>())
+            for canvas in allCanvases {
+                canvas.tags = []
+                canvas.title = nil
+            }
+            try context.save()
+            
+            try context.delete(model: Cloud.self)
+            try context.save()
+            
             let canvases = try context.fetch(FetchDescriptor<Canvas>())
                 .sorted { $0.createdOn < $1.createdOn }
             
@@ -113,8 +122,6 @@ final class CanvasProcessor {
             }
         } catch {
             self.error = error
-            setUserFacingErrorMessage(from: error, operation: "rebuild clouds")
-            
         }
     }
     
@@ -201,11 +208,11 @@ final class CanvasProcessor {
         }
         
         if let bestCloud, bestCloudScore >= 0.25 {
-                // Only union the overlapping tags — don't let cloud absorb unrelated tags
-                let overlap = canvasTags.intersection(Set(bestCloud.cloudTags))
-                bestCloud.cloudTags = Array(Set(bestCloud.cloudTags).union(overlap))
-                return .existingCloud(bestCloud)
-            }
+            // Only union the overlapping tags — don't let cloud absorb unrelated tags
+            let overlap = canvasTags.intersection(Set(bestCloud.cloudTags))
+            bestCloud.cloudTags = Array(Set(bestCloud.cloudTags).union(overlap))
+            return .existingCloud(bestCloud)
+        }
         
         // No existing cloud matched. Look for an unassigned canvas to pair with.
         let allCanvases = try context.fetch(FetchDescriptor<Canvas>())
@@ -256,7 +263,7 @@ final class CanvasProcessor {
     private func streamTitleAndCloudName(into canvas: Canvas, cloud: Cloud, sibling: Canvas) async throws {
         let canvasText = String(canvas.text.characters)
         let siblingText = String(sibling.text.characters.prefix(200))
-
+        
         // Session 1 — title only
         let titleSession = LanguageModelSession(
             instructions: Instructions {
@@ -272,7 +279,7 @@ final class CanvasProcessor {
                 canvas.title = title
             }
         }
-
+        
         // Session 2 — cloud name only, informed by both titles
         let cloudSession = LanguageModelSession(
             instructions: Instructions {
@@ -290,6 +297,7 @@ final class CanvasProcessor {
             }
         }
     }
+    
     // Generates tags using the specialized content tagging model.
     // This is always a separate session because it uses a different model entirely.
     private func generateTags(for canvas: Canvas) async throws -> [String] {
@@ -297,8 +305,8 @@ final class CanvasProcessor {
         let session = LanguageModelSession(
             model: taggingModel,
             instructions: text.count < 100
-                ? "Provide the 3 most significant topics."
-                : "Provide the 3 most significant topics and 3 most significant objects."
+            ? "Provide the 3 most significant topics."
+            : "Provide the 3 most significant topics and 3 most significant objects."
         )
         let response = try await session.respond(
             to: String(canvas.text.characters),
@@ -348,6 +356,7 @@ final class CanvasProcessor {
         return jaccard + (Double(overlapCount) * 0.05)
     }
     
+    
     func buildCloudGroups(from clouds: [Cloud]) async {
         guard clouds.count >= 2 else {
             cloudGroups = []
@@ -356,6 +365,7 @@ final class CanvasProcessor {
         
         let newGroups = computeGroups(from: clouds)
         
+        // Preserve existing names/descriptions for groups that haven't changed.
         var updatedGroups = newGroups
         for i in updatedGroups.indices {
             let newSig = groupSignature(updatedGroups[i])
@@ -389,7 +399,7 @@ final class CanvasProcessor {
     }
     
     private func computeGroups(from clouds: [Cloud]) -> [CloudGroup] {
-        let safeClouds = clouds.filter { !$0.cloudTags.isEmpty } // filter empties
+        let safeClouds = clouds.filter { !$0.cloudTags.isEmpty }
         let n = safeClouds.count
         guard n >= 2 else { return [] }
         var parent = Array(0..<n)
@@ -407,8 +417,8 @@ final class CanvasProcessor {
         
         for i in 0..<n {
             for j in (i + 1)..<n {
-                let tagsA = Set(clouds[i].cloudTags)
-                let tagsB = Set(clouds[j].cloudTags)
+                let tagsA = Set(safeClouds[i].cloudTags)
+                let tagsB = Set(safeClouds[j].cloudTags)
                 let shared = tagsA.intersection(tagsB)
                 let relativeOverlap = Double(shared.count) / Double(min(tagsA.count, tagsB.count))
                 if shared.count >= 2 || relativeOverlap >= 0.5 {
@@ -425,7 +435,7 @@ final class CanvasProcessor {
         return groupMap.values
             .filter { $0.count >= 2 }
             .map { indices in
-                let groupClouds = indices.map { clouds[$0] }
+                let groupClouds = indices.map { safeClouds[$0] }
                 let sharedTags = groupClouds
                     .reduce(Set(groupClouds[0].cloudTags)) { $0.intersection(Set($1.cloudTags)) }
                 return CloudGroup(clouds: groupClouds, sharedTags: Array(sharedTags))
@@ -440,7 +450,7 @@ final class CanvasProcessor {
             .map { "Cloud '\($0.name)' — tags: \($0.cloudTags.joined(separator: ", "))" }
             .joined(separator: "\n")
         let sharedTagsText = group.sharedTags.joined(separator: ", ")
-
+        
         // Session 1 — name only
         let nameSession = LanguageModelSession(
             instructions: Instructions {
@@ -457,7 +467,7 @@ final class CanvasProcessor {
                 cloudGroups[index].name = name
             }
         }
-
+        
         // Session 2 — description only, can reference the name we just generated
         let descSession = LanguageModelSession(
             instructions: Instructions {
@@ -476,6 +486,7 @@ final class CanvasProcessor {
             }
         }
     }
+    
     
     private func setUserFacingErrorMessage(from error: Error, operation: String) {
         guard let generationError = error as? LanguageModelSession.GenerationError else {

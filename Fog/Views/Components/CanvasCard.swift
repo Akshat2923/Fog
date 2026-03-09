@@ -52,15 +52,8 @@ struct CanvasCard: View {
         }
         .padding()
         .frame(maxWidth: .infinity, minHeight: 90, alignment: .leading)
-        .glassEffect(
-            .regular.tint(
-                .accentColor.opacity(
-                    0.025
-                )
-            ).interactive(),
-            in: .rect(
-                cornerRadius: 34
-            )
-        )
+        .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 34))
+        
+
     }
 }

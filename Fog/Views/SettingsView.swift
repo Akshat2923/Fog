@@ -34,7 +34,7 @@ struct SettingsView: View {
                                 .accessibilityHidden(true)
                         }
                         Slider(value: $meshOpacityScale, in: 0...2, step: 0.05) {
-                            Text("Background Intensity")
+                            Text("Background Gradient Intensity")
                         } minimumValueLabel: {
                             Image(systemName: "sun.min")
                         } maximumValueLabel: {

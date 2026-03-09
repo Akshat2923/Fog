@@ -9,7 +9,7 @@ import Foundation
 import SwiftData
 
 @Model
-class Cloud {
+class Cloud: Hashable {
     var name: String
     var cloudTags: [String]
     var summary: String?

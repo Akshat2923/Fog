@@ -18,6 +18,11 @@ struct CloudsView: View {
     @Query(sort: \Cloud.createdOn, order: .reverse)
     private var clouds: [Cloud]
     
+    private var ungroupedClouds: [Cloud] {
+            let grouped = Set(processor.cloudGroups.flatMap(\.clouds))
+            return clouds.filter { !grouped.contains($0) }
+        }
+    
     private var cloudGroupTrigger: Int {
         var hasher = Hasher()
         for cloud in clouds {
@@ -53,7 +58,7 @@ struct CloudsView: View {
                                         LazyVGrid(
                                             columns: [GridItem(.adaptive(minimum: 100)), GridItem(.flexible())],
                                             alignment: .center,
-                                            spacing: 12
+                                            spacing: 10
                                         ) {
                                             ForEach(allCanvases.prefix(4)) { canvas in
                                                 NavigationLink(value: canvas) {
@@ -90,44 +95,18 @@ struct CloudsView: View {
                                             }
                                             .padding(.horizontal)
                                             
-                                            ScrollView(.horizontal, showsIndicators: false) {
-                                                LazyHStack(spacing: 10) {
-                                                    ForEach(group.clouds) { cloud in
-                                                        NavigationLink(value: cloud) {
-                                                            CloudCard(cloud: cloud)
-                                                                .frame(width: 180)
-                                                        }
-                                                        .buttonStyle(.automatic)
-                                                        .foregroundStyle(Color(.label))
-                                                        
-                                                    }
-                                                    
-                                                }
-                                                .padding(.horizontal)
-                                            }
-                                        }
+                                            WidgetGrid(clouds: group.clouds)
+                                                .padding(.horizontal)                                        }
                                     }
                                 }
-                                if !clouds.isEmpty {
-                                    VStack(alignment: .leading, spacing: 12) {
+                                if !ungroupedClouds.isEmpty {
+                                    VStack(alignment: .leading, spacing: 10) {
                                         Text("Clouds For You")
                                             .font(.headline)
                                             .padding(.horizontal)
-                                        
-                                        LazyVGrid(
-                                            columns: [GridItem(.flexible()), GridItem(.flexible())],
-                                            spacing: 12
-                                        ) {
-                                            ForEach(clouds) { cloud in
-                                                NavigationLink(value: cloud) {
-                                                    CloudCard(cloud: cloud)
-                                                }
-                                                .buttonStyle(.automatic)
-                                                .foregroundStyle(Color(.label))
-                                                
-                                            }
-                                        }
-                                        .padding(.horizontal)
+
+                                        WidgetGrid(clouds: ungroupedClouds)
+                                            .padding(.horizontal)
                                     }
                                 }
                                 
@@ -141,7 +120,6 @@ struct CloudsView: View {
                                     .padding(.top, 60)
                                 }
                                 
-                                ProcessingIndicator()
                                 
                             }
                             
@@ -151,8 +129,6 @@ struct CloudsView: View {
                     } else {
                         GraphView(canvases: allCanvases, clouds: clouds, cloudGroups: processor.cloudGroups)
                             .toolbar(.hidden, for: .tabBar)
-
-                        
                         
                     }
                 }
@@ -196,7 +172,7 @@ struct CloudsView: View {
             }
             
             .fogToolBar(namespace: namespace, path: $path)
-    
+            
             .modifier(FogNavigationDestinations(namespace: namespace, path: $path))
         }
         .task {
@@ -207,23 +183,77 @@ struct CloudsView: View {
         }
         
     }
-}
+    private struct WidgetGrid: View {
+        let clouds: [Cloud]
 
-private struct ProcessingIndicator: View {
-    @Environment(CanvasProcessor.self) private var processor
-    
-    var body: some View {
-        if processor.isProcessing {
-            HStack {
-                ProgressView()
-                Text("Canvas is searching for a Cloud...")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+        var body: some View {
+            // Walk clouds in order, placing wide cards as full-width rows
+            // and pairing narrow cards two-per-row.
+            let rows = buildRows(clouds)
+
+            VStack(spacing: 10) {
+                ForEach(rows.indices, id: \.self) { i in
+                    let row = rows[i]
+                    if row.count == 1 {
+                        // Full-width: medium or large
+                        NavigationLink(value: row[0]) {
+                            CloudCard(cloud: row[0])
+                        }
+                        .buttonStyle(.automatic)
+                        .foregroundStyle(Color(.label))
+                    } else {
+                        // Two narrow cards side by side
+                        HStack(spacing: 10) {
+                            ForEach(row) { cloud in
+                                NavigationLink(value: cloud) {
+                                    CloudCard(cloud: cloud)
+                                }
+                                .buttonStyle(.automatic)
+                                .foregroundStyle(Color(.label))
+                            }
+                        }
+                    }
+                }
             }
-            .padding(.horizontal)
+        }
+
+        /// Groups clouds into rows: wide cards get their own row,
+        /// small/regular cards are paired.
+        private func buildRows(_ clouds: [Cloud]) -> [[Cloud]] {
+            var rows: [[Cloud]] = []
+            var pending: Cloud? = nil
+
+            for cloud in clouds {
+                let size = CloudWidgetSize(canvasCount: cloud.canvases.count)
+                if size.isWide {
+                    // Flush any waiting narrow card first
+                    if let p = pending {
+                        rows.append([p])
+                        pending = nil
+                    }
+                    rows.append([cloud])
+                } else {
+                    if let p = pending {
+                        rows.append([p, cloud])
+                        pending = nil
+                    } else {
+                        pending = cloud
+                    }
+                }
+            }
+
+            // Flush last unpaired narrow card
+            if let p = pending {
+                rows.append([p])
+            }
+
+            return rows
         }
     }
+
 }
+
+
 
 #Preview(traits: .mockData) {
     CloudsView()

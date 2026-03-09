@@ -43,9 +43,6 @@ struct FogToolbar: ViewModifier {
                 SettingsView()
                     .navigationTransition(.zoom(sourceID: "settings", in: namespace))
                     .presentationDetents([.medium, .large])
-                    .interactiveDismissDisabled(true)
-
-                
             }
     }
 }
