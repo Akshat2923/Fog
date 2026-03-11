@@ -9,6 +9,8 @@
 import SwiftUI
 import SwiftData
 
+struct SearchRoute: Hashable {}
+
 struct FogNavigationDestinations: ViewModifier {
     let namespace: Namespace.ID
     @Binding var path: NavigationPath
@@ -37,6 +39,7 @@ struct FogNavigationDestinations: ViewModifier {
                         .toolbarRole(.editor)
                 }
             }
+            
     }
 }
 

@@ -21,7 +21,7 @@ struct CanvasEditorView: View {
     @State private var wasNew = false
     @State private var didManuallyProcess = false
     @State var isShowingDeleteConfirmation: Bool = false
-    
+    @Namespace private var namespace
     
     private var isNew: Bool { canvas.isNew == true }
     
@@ -34,14 +34,24 @@ struct CanvasEditorView: View {
             .navigationTitle("")
             .toolbarTitleDisplayMode(.inline)
             .navigationBarBackButtonHidden(isNew)
-            .richTextToolbar(text: $canvas.text, selection: $selection, isFocused: $isFocused)
+            .richTextToolbar(text: $canvas.text, selection: $selection, isFocused: $isFocused, namespace: namespace)
             .toolbar {
                 ToolbarItem(placement: .principal) {
-                    Text(canvas.title ?? ((isNew || wasNew) ? "New Canvas" : "Canvas"))
-                        .font(.headline)
-                        .contentTransition(.opacity)
-                        .animation(.easeInOut, value: canvas.title)
-                        .redacted(reason: canvas.title == nil ? .placeholder : [])
+                    Group {
+                        if isNew || wasNew {
+                            Text("New Canvas")
+                        } else if processor.isModelAvailable && canvas.title == nil {
+                            // model is working on it — show cursor
+                            BlinkingCursor()
+                                .transition(.opacity)
+                        } else {
+                            // model unavailable (prefix) or title ready
+                            Text(displayTitle)
+                                .transition(.opacity)
+                        }
+                    }
+                    .font(.headline)
+                    .animation(.easeInOut, value: canvas.title)
                 }
          
                 if !isNew {
@@ -159,6 +169,14 @@ struct CanvasEditorView: View {
             guard processor.isModelAvailable else { return }
             Task { await processor.processCanvas(canvas, context: context) }
         }
+    }
+    
+    private var displayTitle: String {
+        if processor.isModelAvailable {
+            return canvas.title ?? ((isNew || wasNew) ? "New Canvas" : "Canvas")
+        }
+        let prefix = String(canvas.text.characters.prefix(15))
+        return prefix.isEmpty ? ((isNew || wasNew) ? "New Canvas" : "Canvas") : prefix
     }
 }
 

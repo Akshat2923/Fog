@@ -4,7 +4,7 @@
 import SwiftUI
 import SwiftData
 
-// MARK: - Node & Edge (value types only, no SwiftData models held)
+// MARK: Need to revisit as it lacks polish, v2
 
 private enum NodeKind {
     case canvas, cloud, cloudGroup

@@ -9,7 +9,6 @@ import SwiftUI
 
 struct RecentCanvasCard: View {
     let canvas: Canvas
-    var showTitle: Bool = true
     
     private var cloudName: String? {
         canvas.cloud?.name.isEmpty == false ? canvas.cloud?.name : nil
@@ -17,14 +16,20 @@ struct RecentCanvasCard: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            if showTitle {
-                Text(canvas.title ?? "Processing...")
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .lineLimit(1)
-                    .redacted(reason: canvas.title == nil ? .placeholder : [])
-                    .animation(.easeInOut, value: canvas.title)
+            Group {
+                if let title = canvas.title {
+                    Text(title)
+                        .transition(.opacity)
+                } else {
+                    BlinkingCursor()
+                        .transition(.opacity)
+                }
             }
+            .font(.subheadline)
+            .fontWeight(.semibold)
+            .lineLimit(1)
+            .animation(.easeInOut, value: canvas.title)
+            
             
             HStack {
                 Text(canvas.updatedOn.formatted(.dateTime.month(.abbreviated).day()))
@@ -44,7 +49,7 @@ struct RecentCanvasCard: View {
         }
         .padding()
         .glassEffect(.regular.interactive(), in: .capsule)
-       
+        
     }
 }
 

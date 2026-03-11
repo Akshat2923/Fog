@@ -97,12 +97,14 @@ struct MoreFormattingView: View {
                     .font(.system(size: 22))
                 }
             }
-            Button("Remove Formatting") {
+            Button(role: .destructive) {
                 text.transformAttributes(in: &selection) { container in
                     container = AttributeContainer()
                 }
+            } label: {
+                Text("Remove Formatting")
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(.borderedProminent)
         }
         .buttonStyle(.plain)
         .padding()

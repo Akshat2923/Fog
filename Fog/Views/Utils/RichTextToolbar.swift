@@ -12,7 +12,8 @@ struct RichTextToolbar: ViewModifier {
     @Binding var selection: AttributedTextSelection
     var isFocused: FocusState<Bool>.Binding
     @State private var showMoreFormatting = false
-
+    let namespace: Namespace.ID
+    
     func body(content: Content) -> some View {
         content
             .toolbar {
@@ -30,6 +31,8 @@ struct RichTextToolbar: ViewModifier {
                         } label: {
                             Image(systemName: "textformat.alt")
                         }
+                        .matchedTransitionSource(id: "formatting", in: namespace)
+
                         Spacer()
                         Button {
                             isFocused.wrappedValue = false
@@ -43,9 +46,11 @@ struct RichTextToolbar: ViewModifier {
             }
             .sheet(isPresented: $showMoreFormatting) {
                 MoreFormattingView(text: $text, selection: $selection)
+                    .navigationTransition(.zoom(sourceID: "formatting", in: namespace))
                     .presentationDetents([.height(200)])
             }
     }
+    
     private func insertBullet() {
         let str = String(text.characters)
         if str.isEmpty || str.hasSuffix("\n") {
@@ -63,8 +68,9 @@ extension View {
     func richTextToolbar(
         text: Binding<AttributedString>,
         selection: Binding<AttributedTextSelection>,
-        isFocused: FocusState<Bool>.Binding  
+        isFocused: FocusState<Bool>.Binding,
+        namespace: Namespace.ID
     ) -> some View {
-        modifier(RichTextToolbar(text: text, selection: selection, isFocused: isFocused))
+        modifier(RichTextToolbar(text: text, selection: selection, isFocused: isFocused, namespace: namespace))
     }
 }

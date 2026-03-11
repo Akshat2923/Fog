@@ -11,7 +11,7 @@ enum CloudWidgetSize {
     case small   // 1-4 canvases:  1×1 square, half-width
     case medium  // 5-9 canvases:  2×1 wide, full-width
     case large   // 10+ canvases:  2×2 tall, full-width
-
+    
     init(canvasCount: Int) {
         switch canvasCount {
         case 0...4:  self = .small
@@ -19,7 +19,7 @@ enum CloudWidgetSize {
         default:     self = .large
         }
     }
-
+    
     var height: CGFloat {
         switch self {
         case .small:  return 155
@@ -27,7 +27,7 @@ enum CloudWidgetSize {
         case .large:  return 300
         }
     }
-
+    
     var isWide: Bool {
         self == .medium || self == .large
     }
@@ -37,11 +37,11 @@ enum CloudWidgetSize {
 
 struct CloudCard: View {
     let cloud: Cloud
-
+    
     private var widgetSize: CloudWidgetSize {
         CloudWidgetSize(canvasCount: cloud.canvases.count)
     }
-
+    
     private var tintOpacity: Double {
         switch widgetSize {
         case .small:  return 0.1
@@ -49,7 +49,7 @@ struct CloudCard: View {
         case .large:  return 0.50
         }
     }
-
+    
     private var titleFont: Font {
         switch widgetSize {
         case .small:  return .headline
@@ -57,22 +57,29 @@ struct CloudCard: View {
         case .large:  return .largeTitle
         }
     }
-
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("\(cloud.canvases.count) canvas\(cloud.canvases.count == 1 ? "" : "es")")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-
+            
             Spacer()
-
-            Text(cloud.name.isEmpty ? "New Cloud" : cloud.name)
-                .multilineTextAlignment(.leading)
-                .font(titleFont)
-                .lineLimit(widgetSize == .large ? 4 : 2)
-                .redacted(reason: cloud.name.isEmpty ? .placeholder : [])
-                .animation(.easeInOut, value: cloud.name)
-
+            
+            Group {
+                if cloud.name.isEmpty {
+                    BlinkingCursor()
+                        .transition(.opacity)
+                } else {
+                    Text(cloud.name)
+                        .multilineTextAlignment(.leading)
+                        .lineLimit(widgetSize == .large ? 4 : 2)
+                        .transition(.opacity)
+                }
+            }
+            .font(titleFont)
+            .animation(.easeInOut, value: cloud.name)
+            
             if !cloud.cloudTags.isEmpty {
                 Text(cloud.cloudTags.prefix(3).joined(separator: " · "))
                     .font(.caption)

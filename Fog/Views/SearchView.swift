@@ -8,6 +8,7 @@
 import SwiftUI
 import SwiftData
 
+// Can safely delete later
 struct SearchView: View {
     @Query(sort: \Canvas.updatedOn, order: .reverse) private var allCanvases: [Canvas]
     @State private var query = ""
