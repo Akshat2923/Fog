@@ -40,7 +40,7 @@ struct RecentCanvasCard: View {
                 Spacer()
                 
                 if let name = cloudName {
-                    Label(name, systemImage: "cloud.fill")
+                    Label(name, systemImage: "cloud")
                         .font(.footnote)
                         .italic()
                         .lineLimit(1)

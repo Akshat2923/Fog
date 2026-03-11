@@ -9,6 +9,7 @@ import Foundation
 import SwiftData
 import FoundationModels
 import Observation
+import Playgrounds
 
 @Observable
 @MainActor
@@ -79,9 +80,7 @@ final class CanvasProcessor {
                 // Only grow cloud with tags that were already relevant to it
                 let overlap = Set(canvas.tags).intersection(Set(cloud.cloudTags))
                 cloud.cloudTags = Array(Set(cloud.cloudTags).union(overlap))
-                if !cloud.canvases.contains(canvas) {
-                    cloud.canvases.append(canvas)
-                }
+                cloud.canvases.append(canvas)
                 try await streamTitle(into: canvas)
                 
             case .newCloud(let sibling):
@@ -106,18 +105,9 @@ final class CanvasProcessor {
     func rebuildClouds(context: ModelContext) async {
         guard case .available = generalModel.availability else { return }
         error = nil
+        userFacingErrorMessage = nil
         
         do {
-            let allCanvases = try context.fetch(FetchDescriptor<Canvas>())
-            for canvas in allCanvases {
-                canvas.tags = []
-                canvas.title = nil
-            }
-            try context.save()
-            
-            try context.delete(model: Cloud.self)
-            try context.save()
-            
             let canvases = try context.fetch(FetchDescriptor<Canvas>())
                 .sorted { $0.createdOn < $1.createdOn }
             
@@ -126,6 +116,8 @@ final class CanvasProcessor {
             }
         } catch {
             self.error = error
+            setUserFacingErrorMessage(from: error, operation: "rebuild clouds")
+            
         }
     }
     
@@ -267,21 +259,10 @@ final class CanvasProcessor {
         guard !canvasTags.isEmpty else { return .unassigned }
         
         let allClouds = try context.fetch(FetchDescriptor<Cloud>())
-        var bestCloud: Cloud?
-        var bestCloudScore = 0.0
         for cloud in allClouds {
-            let score = similarityScore(between: canvasTags, and: Set(cloud.cloudTags))
-            if score > bestCloudScore {
-                bestCloudScore = score
-                bestCloud = cloud
+            if !canvasTags.intersection(Set(cloud.cloudTags)).isEmpty {
+                return .existingCloud(cloud)
             }
-        }
-        
-        if let bestCloud, bestCloudScore >= 0.25 {
-            // Only union the overlapping tags — don't let cloud absorb unrelated tags
-            let overlap = canvasTags.intersection(Set(bestCloud.cloudTags))
-            bestCloud.cloudTags = Array(Set(bestCloud.cloudTags).union(overlap))
-            return .existingCloud(bestCloud)
         }
         
         // No existing cloud matched. Look for an unassigned canvas to pair with.
@@ -292,18 +273,10 @@ final class CanvasProcessor {
             && !$0.tags.isEmpty   // has tags to compare against
         }
         
-        var bestSibling: Canvas?
-        var bestSiblingScore = 0.0
         for other in unassigned {
-            let score = similarityScore(between: canvasTags, and: Set(other.tags))
-            if score > bestSiblingScore {
-                bestSiblingScore = score
-                bestSibling = other
+            if !canvasTags.intersection(Set(other.tags)).isEmpty {
+                return .newCloud(other)
             }
-        }
-        
-        if let bestSibling {
-            return .newCloud(bestSibling)
         }
         
         return .unassigned
