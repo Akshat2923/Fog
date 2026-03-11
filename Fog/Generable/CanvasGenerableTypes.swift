@@ -16,7 +16,7 @@ struct CanvasTags {
         .maximumCount(3)
     )
     let topics: [String]
-
+    
     @Guide(
         description: "Specific things, people, or concepts mentioned, like 'Python', 'Paris', or 'sourdough bread'.",
         .maximumCount(3)
@@ -48,6 +48,13 @@ struct CloudGroupName {
     @Guide(description: "A short thematic name, 1–3 words, like 'Creative Projects' or 'Daily Life'.")
     let name: String
 }
+
+@Generable
+struct AppGreeting {
+    @Guide(description: "A short, warm, context-aware greeting for someone opening their note app. 5–10 words. Reference the time of day or the themes of their notes naturally, like 'Good morning, ready to pick up where you left off?' or 'Looks like a creative afternoon ahead.' Never use the word 'notes'. Never start with 'Hello' or 'Hi'.")
+    let greeting: String
+}
+
 
 @Generable
 struct CloudGroupDescription {

@@ -150,11 +150,17 @@ struct CloudsView: View {
         .task(id: cloudGroupTrigger) {
             await processor.buildCloudGroups(from: clouds)
         }
-        
+        .task(id: cloudGroupTrigger) {
+            await processor.generateGreeting(clouds: clouds, canvases: allCanvases)
+        }
     }
     
     // Main content need to clean up
     private struct SearchAwareContent: View {
+        @Environment(CanvasProcessor.self) var processor
+        @Environment(\.modelContext) private var context
+        
+        
         @Environment(\.isSearching) private var isSearching
         
         let allCanvases: [Canvas]
@@ -171,18 +177,26 @@ struct CloudsView: View {
         var body: some View {
             if filterByCanvases {
                 // Render CanvasLibraryView inline, or replicate its grid here
-                ScrollView {
-                    LazyVGrid(columns: [GridItem(.flexible())], spacing: 8) {
-                        ForEach(sortedCanvases) { canvas in
-                            NavigationLink(value: canvas) {
-                                CanvasCard(canvas: canvas)
-                            }
-                            .buttonStyle(.automatic)
-                            .foregroundStyle(Color(.label))
+                
+                List {
+                    ForEach(sortedCanvases) { canvas in
+                        NavigationLink(value: canvas) {
+                            CanvasCard(canvas: canvas)
                         }
+                        .foregroundStyle(Color(.label))
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets(top: 4, leading: 8, bottom: 4, trailing: 8))
                     }
-                    .padding(.horizontal, 8)
+                    .onDelete { offsets in
+                        for index in offsets {
+                            context.delete(sortedCanvases[index])
+                        }
+                        try? context.save()
+                    }
                 }
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
             } else if isSearching {
                 ScrollView {
                     LazyVGrid(columns: [GridItem(.flexible())], spacing: 8) {
@@ -198,7 +212,12 @@ struct CloudsView: View {
                 }
             } else {
                 ScrollView {
+                    GreetingBanner(
+                        greeting: processor.greeting,
+                        isGenerating: processor.isGeneratingGreeting
+                    )
                     VStack(alignment: .leading, spacing: 28) {
+                        
                         
                         // unassigned
                         if !allCanvases.isEmpty {
@@ -293,6 +312,31 @@ struct CloudsView: View {
         }
     }
     
+    private struct GreetingBanner: View {
+        let greeting: String
+        let isGenerating: Bool
+        
+        var body: some View {
+            HStack(spacing: 6) {
+                Text(greeting)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.secondary)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                    .animation(.easeInOut(duration: 0.4), value: greeting)
+                
+                if isGenerating {
+                    BlinkingCursor()
+                        .transition(.opacity)
+                }
+                
+                Spacer()
+            }
+            .padding(.horizontal)
+            .padding(.top, 4)
+            .padding(.bottom, 2)
+        }
+    }
     
     // UI Helpers
     private struct WidgetGrid: View {

@@ -40,6 +40,10 @@ final class CanvasProcessor {
     private(set) var isStreamingSuggestion = false
     private(set) var suggestionCanvasId: PersistentIdentifier?
     
+    private(set) var greeting: String = ""
+    private(set) var isGeneratingGreeting = false
+    private var greetingSignature: String = ""
+    
     func checkAvailability() {
         switch SystemLanguageModel.default.availability {
         case .available:
@@ -184,6 +188,72 @@ final class CanvasProcessor {
     
     func clearUserFacingError() {
         userFacingErrorMessage = nil
+    }
+    
+    func generateGreeting(clouds: [Cloud], canvases: [Canvas]) async {
+        guard case .available = generalModel.availability else { return }
+        
+        let signature = makeGreetingSignature(clouds: clouds, canvases: canvases)
+        guard signature != greetingSignature || greeting.isEmpty else { return }
+        
+        isGeneratingGreeting = true
+        defer { isGeneratingGreeting = false }
+        
+        let hour = Calendar.current.component(.hour, from: .now)
+        let timeOfDay: String
+        switch hour {
+        case 5..<12:  timeOfDay = "morning"
+        case 12..<17: timeOfDay = "afternoon"
+        case 17..<21: timeOfDay = "evening"
+        default:      timeOfDay = "night"
+        }
+        
+        let topTags = Array(
+            clouds.flatMap(\.cloudTags)
+                .reduce(into: [:]) { counts, tag in counts[tag, default: 0] += 1 }
+                .sorted { $0.value > $1.value }
+                .prefix(5)
+                .map(\.key)
+        )
+        let cloudNames = clouds.compactMap { $0.name.isEmpty ? nil : $0.name }.prefix(4)
+        
+        do {
+            let session = LanguageModelSession(
+                instructions: Instructions {
+                    "You are a warm, minimal writing companion."
+                    "Generate a single short greeting for someone opening their note app."
+                    "It should feel personal and context-aware, referencing the time of day or their note themes."
+                    "Keep it to 5–10 words. No punctuation at the end. Never say 'notes' or 'Hi' or 'Hello'."
+                }
+            )
+            
+            let stream = session.streamResponse(generating: AppGreeting.self, includeSchemaInPrompt: false) {
+                "Time of day: \(timeOfDay)"
+                if !topTags.isEmpty {
+                    "Their main themes: \(topTags.joined(separator: ", "))"
+                }
+                if !cloudNames.isEmpty {
+                    "Their cloud names: \(cloudNames.joined(separator: ", "))"
+                }
+                "Total canvases: \(canvases.count)"
+            }
+            
+            for try await partial in stream {
+                if let text = partial.content.greeting {
+                    greeting = text
+                }
+            }
+            greetingSignature = signature
+        } catch {
+            // Silently fall back — greeting is non-critical
+        }
+    }
+    
+    private func makeGreetingSignature(clouds: [Cloud], canvases: [Canvas]) -> String {
+        let hour = Calendar.current.component(.hour, from: .now)
+        let timeSlot = hour / 4
+        let topTags = clouds.flatMap(\.cloudTags).sorted().prefix(5).joined(separator: ",")
+        return "\(timeSlot)|\(clouds.count)|\(canvases.count)|\(topTags)"
     }
     
     func prewarm() {
