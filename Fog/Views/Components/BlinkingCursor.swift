@@ -12,6 +12,7 @@ struct BlinkingCursor: View {
     
     var body: some View {
         Text("|")
+            .foregroundStyle(Color.accentColor)
             .opacity(visible ? 1 : 0)
             .onAppear {
                 withAnimation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true)) {
