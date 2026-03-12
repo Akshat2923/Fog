@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import SwiftData
 
 // MARK: - Typed Text
 
@@ -46,19 +47,28 @@ private struct TypedText: View {
 struct WelcomeView: View {
     var onComplete: () -> Void
     
-    @AppStorage("accentColor")      private var accentColor: Color  = .primary
-    @AppStorage("useFullTint")      private var useFullTint: Bool   = false
-    @AppStorage("meshOpacityScale") private var meshOpacityScale: Double = 1.0
-    @AppStorage("rainbowRave")      private var rainbowRave: Bool   = false
+    @Environment(\.modelContext) private var context
+    @Environment(PileManager.self) private var pileManager
+    
+    // Pile name entered during onboarding
+    @State private var pileName: String = "Personal"
+    
+    // Per-pile theme (written to the Pile on completion)
+    @State private var accentColor: Color = .primary
+    @State private var useFullTint: Bool = false
+    @State private var meshOpacityScale: Double = 1.0
+    @State private var rainbowRave: Bool = false
     
     // Steps:
-    // 0 — theme visible
-    // 1 — card0 (Auto Name), theme gone
-    // 2 — card1 (Auto Group)
-    // 3 — card2 (Cloud Groups)
-    // 4 — privacy panel, all feature cards gone
-    // 5 — done
-    @State private var showTheme:   Bool = true
+    // 0 — pile card
+    // 1 — theme card (pile gone)
+    // 2 — feature card: Auto Name (theme gone)
+    // 3 — feature card: Auto Group
+    // 4 — feature card: Cloud Groups
+    // 5 — privacy panel (feature cards gone)
+    // 6 — done
+    @State private var showPile:    Bool = true
+    @State private var showTheme:   Bool = false
     @State private var showCard0:   Bool = false
     @State private var showCard1:   Bool = false
     @State private var showCard2:   Bool = false
@@ -79,33 +89,51 @@ struct WelcomeView: View {
                         GlassEffectContainer(spacing: 16) {
                             VStack(spacing: 16) {
                                 
+                                if showPile {
+                                    pileCard
+                                        .glassEffect(.clear.interactive(), in: glassShape)
+                                        .glassEffectID("pile", in: namespace)
+                                        .glassEffectTransition(.matchedGeometry)
+                                }
+                                
                                 if showTheme {
-                                    themePanel
+                                    themeCard
                                         .glassEffect(.clear.interactive(), in: glassShape)
                                         .glassEffectID("theme", in: namespace)
                                         .glassEffectTransition(.matchedGeometry)
                                 }
                                 
                                 if showCard0 {
-                                    featureCard(icon: "textformat.characters", title: "Auto Name", description: "AI reads your canvas and suggests a smart title so you never stare at \"Untitled\" again.")
-                                        .glassEffect(.clear.interactive(), in: glassShape)
-                                        .glassEffectID("card0", in: namespace)
-                                        .glassEffectTransition(.matchedGeometry)
+                                    featureCard(
+                                        icon: "textformat.characters",
+                                        title: "Auto Name",
+                                        description: "AI reads your canvas and suggests a smart title so you never stare at \"Untitled\" again."
+                                    )
+                                    .glassEffect(.clear.interactive(), in: glassShape)
+                                    .glassEffectID("card0", in: namespace)
+                                    .glassEffectTransition(.matchedGeometry)
                                 }
                                 
-                                
                                 if showCard1 {
-                                    featureCard(icon: "cloud", title: "Auto Group", description: "Related canvases are automatically gathered into clouds with AI-written summaries.")
-                                        .glassEffect(.clear.interactive(), in: glassShape)
-                                        .glassEffectID("card1", in: namespace)
-                                        .glassEffectTransition(.matchedGeometry)
+                                    featureCard(
+                                        icon: "cloud",
+                                        title: "Auto Group",
+                                        description: "Related canvases are automatically gathered into clouds with AI-written summaries."
+                                    )
+                                    .glassEffect(.clear.interactive(), in: glassShape)
+                                    .glassEffectID("card1", in: namespace)
+                                    .glassEffectTransition(.matchedGeometry)
                                 }
                                 
                                 if showCard2 {
-                                    featureCard(icon: "smoke", title: "Cloud Groups", description: "Clouds organise themselves into higher-level groups so your ideas stay structured at every scale.")
-                                        .glassEffect(.clear.interactive(), in: glassShape)
-                                        .glassEffectID("card2", in: namespace)
-                                        .glassEffectTransition(.matchedGeometry)
+                                    featureCard(
+                                        icon: "smoke",
+                                        title: "Cloud Groups",
+                                        description: "Clouds organise themselves into higher-level groups so your ideas stay structured at every scale."
+                                    )
+                                    .glassEffect(.clear.interactive(), in: glassShape)
+                                    .glassEffectID("card2", in: namespace)
+                                    .glassEffectTransition(.matchedGeometry)
                                 }
                                 
                                 if showPrivacy {
@@ -133,22 +161,37 @@ struct WelcomeView: View {
                 }
                 ToolbarItemGroup(placement: .bottomBar) {
                     Spacer()
-                    if step >= 4 {
-                        Button("Get Started") { onComplete() }
-                            .buttonStyle(.glassProminent)
+                    if step >= 5 {
+                        Button("Get Started") {
+                            let trimmed = pileName.trimmingCharacters(in: .whitespacesAndNewlines)
+                            let name = trimmed.isEmpty ? "Personal" : trimmed
+                            let pile = Pile(name: name, isDefault: true)
+                            pile.accentColor = accentColor
+                            pile.useFullTint = useFullTint
+                            pile.meshOpacityScale = meshOpacityScale
+                            pile.rainbowRave = rainbowRave
+                            context.insert(pile)
+                            try? context.save()
+                            pileManager.switchTo(pile)
+                            onComplete()
+                        }
+                        .buttonStyle(.glassProminent)
                     } else {
                         Button {
                             withAnimation(.spring(response: 0.5, dampingFraction: 0.75)) {
                                 step += 1
                                 switch step {
                                 case 1:
+                                    showPile = false
+                                    showTheme = true
+                                case 2:
                                     showTheme = false
                                     showCard0 = true
-                                case 2:
-                                    showCard1 = true
                                 case 3:
-                                    showCard2 = true
+                                    showCard1 = true
                                 case 4:
+                                    showCard2 = true
+                                case 5:
                                     showCard0 = false
                                     showCard1 = false
                                     showCard2 = false
@@ -171,16 +214,58 @@ struct WelcomeView: View {
     private var navTitle: String {
         switch step {
         case 0:      return "Welcome to Fog"
-        case 1...3:  return "What Fog Can Do"
+        case 1:      return "Make It Yours"
+        case 2...4:  return "What Fog Can Do"
         default:     return "How Fog Works"
         }
     }
     
-    // MARK: Theme Panel
+    // MARK: - Pile Card
     
-    private var themePanel: some View {
+    private var pileCard: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Label("Customize Your Theme", systemImage: "paintpalette.fill")
+            Label("Your First Pile", systemImage: "square.stack.3d.up.fill")
+                .font(.headline)
+                .padding(.horizontal, 20)
+                .padding(.top, 20)
+                .padding(.bottom, 12)
+            
+            // What is a Pile?
+            HStack(alignment: .top, spacing: 16) {
+                
+                Text("A Pile is your own space — like a profile or workspace. Each Pile has its own canvases, clouds, and theme. Switch between Piles to keep work, personal, and creative projects completely separate.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                
+                
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 14)
+            
+            Divider()
+                .padding(.horizontal, 20)
+            
+            VStack(alignment: .leading) {
+                
+                TextField("e.g. Personal", text: $pileName)
+                    .font(.body)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(.fill.tertiary, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 14)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 14)
+        }
+    }
+    
+    // MARK: - Theme Card
+    
+    private var themeCard: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Label("Appearance", systemImage: "paintpalette.fill")
                 .font(.headline)
                 .padding(.horizontal, 20)
                 .padding(.top, 20)
@@ -226,7 +311,7 @@ struct WelcomeView: View {
         }
     }
     
-    // MARK: Feature Card
+    // MARK: - Feature Card
     
     private func featureCard(icon: String, title: String, description: String) -> some View {
         HStack(alignment: .top, spacing: 16) {
@@ -250,7 +335,7 @@ struct WelcomeView: View {
         .padding(.vertical, 16)
     }
     
-    // MARK: Privacy Panel
+    // MARK: - Privacy Panel
     
     private var privacyPanel: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -259,7 +344,7 @@ struct WelcomeView: View {
                 .padding(.horizontal, 20)
                 .padding(.top, 20)
                 .padding(.bottom, 12)
-                        
+            
             HStack(alignment: .top, spacing: 16) {
                 Image(systemName: "cpu")
                     .font(.system(size: 22, weight: .medium))
@@ -277,11 +362,10 @@ struct WelcomeView: View {
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 14)
-                        
+            
             HStack(alignment: .top, spacing: 16) {
                 Image(systemName: "internaldrive")
                     .font(.system(size: 22, weight: .medium))
-                
                     .foregroundStyle(accentColor)
                     .frame(width: 36, height: 36)
                 
@@ -302,4 +386,6 @@ struct WelcomeView: View {
 
 #Preview {
     WelcomeView(onComplete: {})
+        .environment(PileManager())
+        .modelContainer(for: Pile.self, inMemory: true)
 }

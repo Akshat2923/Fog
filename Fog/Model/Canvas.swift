@@ -17,6 +17,7 @@ class Canvas {
     var createdOn: Date
     var updatedOn: Date
     var cloud: Cloud?
+    var pile: Pile?
 
     init(text: AttributedString = "") {
         self.text = text

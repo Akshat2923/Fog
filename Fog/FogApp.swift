@@ -11,17 +11,17 @@ import SwiftData
 @main
 struct FogApp: App {
     @State private var processor = CanvasProcessor()
-    @AppStorage("accentColor") private var accentColor: Color = .primary
-    @AppStorage("useFullTint") private var useFullTint: Bool = false
+    @State private var pileManager = PileManager()
     @State private var showingAlert = false
-    
+
     var body: some Scene {
         WindowGroup {
             FogRootView()
                 .environment(processor)
-                .accentColor(accentColor)
-            // eg tint is null if user says no here keep accent as is
-                .tint(useFullTint ? accentColor : nil)
+                .environment(pileManager)
+                // Theme driven by the active pile; fall back to system defaults
+                .accentColor(pileManager.activePile?.accentColor ?? .primary)
+                .tint((pileManager.activePile?.useFullTint ?? false) ? (pileManager.activePile?.accentColor ?? .primary) : nil)
                 .alert("Important message", isPresented: $showingAlert) {
                     Button("OK", role: .confirm) { }
                 } message: {
@@ -47,9 +47,8 @@ struct FogApp: App {
                 } message: {
                     Text(processor.userFacingErrorMessage ?? "An unknown error occurred.")
                 }
-            
-            
         }
+        // Canvas.self is the root; SwiftData infers Cloud and Pile via relationships
         .modelContainer(for: Canvas.self)
     }
 }

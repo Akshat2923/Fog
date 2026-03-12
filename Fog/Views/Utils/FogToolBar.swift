@@ -10,19 +10,26 @@ import SwiftData
 
 struct FogToolbar: ViewModifier {
     @Environment(\.modelContext) private var context
-    @Binding var filterByCanvases: Bool   // add this
+    @Environment(PileManager.self) private var pileManager
+    @Binding var filterByCanvases: Bool
     @Binding var sortOrder: CanvasSortOrder
     @State private var showSortSheet = false
-    
-    
+
     let namespace: Namespace.ID
     @Binding var path: NavigationPath
-    
+
     @State private var showSettings = false
-    
+
+    @Query(sort: \Pile.createdOn, order: .forward) private var allPiles: [Pile]
+
     func body(content: Content) -> some View {
         content
             .toolbar {
+                // Pile switcher — top left
+                ToolbarItem(placement: .topBarLeading) {
+                    pileSwitcherMenu
+                }
+
                 ToolbarItem(placement: .destructiveAction) {
                     Button {
                         showSettings = true
@@ -38,9 +45,7 @@ struct FogToolbar: ViewModifier {
                                 withAnimation(.spring) { filterByCanvases.toggle() }
                             } label: {
                                 Image(systemName: "rectangle.stack.fill")
-                                    .padding(4)
-                                    .background(Color.accentColor)
-                                    .cornerRadius(34)
+                                   
                             }
                             
                             Button {
@@ -84,6 +89,7 @@ struct FogToolbar: ViewModifier {
                 ToolbarItem(placement: .bottomBar) {
                     Button {
                         let newCanvas = Canvas()
+                        newCanvas.pile = pileManager.activePile
                         context.insert(newCanvas)
                         path.append(newCanvas)
                     } label: {
@@ -107,7 +113,39 @@ struct FogToolbar: ViewModifier {
                     .presentationDetents([.medium, .large])
             }
     }
+
+    // MARK: - Pile Switcher
+
+    @ViewBuilder
+    private var pileSwitcherMenu: some View {
+        Menu {
+            ForEach(allPiles) { pile in
+                Button {
+                    pileManager.switchTo(pile)
+                } label: {
+                    HStack {
+                        Text(pile.name)
+                        if pile === pileManager.activePile {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                if let name = pileManager.activePile?.name {
+                    Text(name)
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                }
+                Image(systemName: "chevron.down")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
 }
+
 extension View {
     func fogToolBar(namespace: Namespace.ID, path: Binding<NavigationPath>, filterByCanvases: Binding<Bool>, sortOrder: Binding<CanvasSortOrder>) -> some View {
         modifier(FogToolbar(filterByCanvases: filterByCanvases, sortOrder: sortOrder, namespace: namespace, path: path))

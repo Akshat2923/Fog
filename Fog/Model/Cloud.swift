@@ -15,6 +15,7 @@ class Cloud: Hashable {
     var summary: String?
     var summaryContentSignature: String?
     var createdOn: Date
+    var pile: Pile?
 
     @Relationship(deleteRule: .nullify, inverse: \Canvas.cloud)
     var canvases: [Canvas]

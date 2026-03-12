@@ -14,7 +14,7 @@ struct CloudsView: View {
     private var results: [Canvas] {
         let q = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard !q.isEmpty else { return [] }
-        return allCanvases.filter { canvas in
+        return pileCanvases.filter { canvas in
             let title = (canvas.title ?? "").lowercased()
             let text = String(canvas.text.characters).lowercased()
             let tags = canvas.tags.map { $0.lowercased() }
@@ -25,15 +25,27 @@ struct CloudsView: View {
             || cloudName.contains(q)
         }
     }
-    
+
     @Environment(CanvasProcessor.self) var processor
+    @Environment(PileManager.self) var pileManager
     @Environment(\.modelContext) private var context
-    
+
     @Query(sort: \Canvas.updatedOn, order: .reverse)
     private var allCanvases: [Canvas]
-    
+
     @Query(sort: \Cloud.createdOn, order: .reverse)
-    private var clouds: [Cloud]
+    private var allClouds: [Cloud]
+
+    // Filtered to the active pile
+    private var pileCanvases: [Canvas] {
+        guard let pile = pileManager.activePile else { return allCanvases }
+        return allCanvases.filter { $0.pile === pile }
+    }
+
+    private var clouds: [Cloud] {
+        guard let pile = pileManager.activePile else { return allClouds }
+        return allClouds.filter { $0.pile === pile }
+    }
     
     private var ungroupedClouds: [Cloud] {
         let grouped = Set(processor.cloudGroups.flatMap(\.clouds))
@@ -60,10 +72,10 @@ struct CloudsView: View {
     
     private var sortedCanvases: [Canvas] {
         switch sortOrder {
-        case .updatedNewest: return allCanvases.sorted { $0.updatedOn > $1.updatedOn }
-        case .updatedOldest: return allCanvases.sorted { $0.updatedOn < $1.updatedOn }
-        case .createdNewest: return allCanvases.sorted { $0.createdOn > $1.createdOn }
-        case .createdOldest: return allCanvases.sorted { $0.createdOn < $1.createdOn }
+        case .updatedNewest: return pileCanvases.sorted { $0.updatedOn > $1.updatedOn }
+        case .updatedOldest: return pileCanvases.sorted { $0.updatedOn < $1.updatedOn }
+        case .createdNewest: return pileCanvases.sorted { $0.createdOn > $1.createdOn }
+        case .createdOldest: return pileCanvases.sorted { $0.createdOn < $1.createdOn }
         }
     }
     
@@ -74,9 +86,8 @@ struct CloudsView: View {
                 
                 VStack{
                     SearchAwareContent(
-                        allCanvases: allCanvases,
+                        allCanvases: pileCanvases,
                         sortedCanvases: sortedCanvases,
-                        
                         results: results,
                         clouds: clouds,
                         ungroupedClouds: ungroupedClouds,
@@ -108,36 +119,21 @@ struct CloudsView: View {
             //            .toolbarTitleDisplayMode(.inlineLarge)
             .navigationSubtitle(Date.now.formatted(.dateTime.weekday(.wide).month(.abbreviated).day()))
             .toolbar {
-                
-                //                ToolbarItem(placement: .topBarTrailing) {
-                //                    Picker("View Mode", selection: $selected) {
-                //                        Image(systemName: "rectangle.3.group").tag(0)
-                //                        Image(systemName: "graph.3d").tag(1)
-                //                    }
-                //                    .pickerStyle(.segmented)
-                //                    .accessibilityLabel("Toggle view mode")
-                //                }
-                //                .sharedBackgroundVisibility(.hidden)
-                
-                ToolbarItem(placement: .topBarLeading) {
-                    if (processor.isProcessing){
+                ToolbarItem(placement: .topBarTrailing) {
+                    if processor.isProcessing {
                         ProgressView()
-                        
                     } else {
                         Menu("Rebuild Clouds", systemImage: "bubbles.and.sparkles") {
                             Menu("Rebuild Clouds?", systemImage: "bubbles.and.sparkles") {
                                 Button("This will delete your current clouds.", role: .destructive) {
                                     Task {
-                                        await processor.rebuildClouds(context: context)
+                                        await processor.rebuildClouds(context: context, pile: pileManager.activePile)
                                     }
                                 }
                             }
                         }
                     }
                 }
-                
-                ToolbarSpacer(.fixed, placement: .topBarTrailing)
-                
             }
             .searchable(text: $query)
             
@@ -151,7 +147,7 @@ struct CloudsView: View {
             await processor.buildCloudGroups(from: clouds)
         }
         .task(id: cloudGroupTrigger) {
-            await processor.generateGreeting(clouds: clouds, canvases: allCanvases)
+            await processor.generateGreeting(clouds: clouds, canvases: pileCanvases)
         }
     }
     
@@ -410,5 +406,6 @@ struct CloudsView: View {
 #Preview(traits: .mockData) {
     CloudsView()
         .environment(CanvasProcessor())
+        .environment(PileManager())
 }
 

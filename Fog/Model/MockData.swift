@@ -20,20 +20,27 @@ struct MockData: PreviewModifier {
             configurations: ModelConfiguration(isStoredInMemoryOnly: true)
         )
 
+        let defaultPile = Pile(name: "Personal", isDefault: true)
+        container.mainContext.insert(defaultPile)
+
         let canvas1 = Canvas(text: "Need to finish the Q4 report by Friday and sync with the team.")
         canvas1.title = "Q4 Report Deadline"
         canvas1.tags = ["work", "deadline", "report"]
+        canvas1.pile = defaultPile
 
         let canvas2 = Canvas(text: "Meeting with design team to discuss the launch timeline and assets.")
         canvas2.title = "Design Sync"
         canvas2.tags = ["work", "meeting", "design"]
+        canvas2.pile = defaultPile
 
         let canvas3 = Canvas(text: "Picked up groceries. Need to cook dinner tonight.")
         canvas3.title = "Grocery Run"
         canvas3.tags = ["personal", "food", "errand"]
+        canvas3.pile = defaultPile
 
         let workCloud = Cloud(name: "Work", cloudTags: ["work"])
         workCloud.canvases = [canvas1, canvas2]
+        workCloud.pile = defaultPile
 
         container.mainContext.insert(canvas1)
         container.mainContext.insert(canvas2)

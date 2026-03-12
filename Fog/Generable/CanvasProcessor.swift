@@ -86,6 +86,7 @@ final class CanvasProcessor {
             case .newCloud(let sibling):
                 let sharedTags = Array(Set(canvas.tags).intersection(Set(sibling.tags)))
                 let newCloud = Cloud(name: "", cloudTags: sharedTags)
+                newCloud.pile = canvas.pile
                 context.insert(newCloud)
                 newCloud.canvases = [canvas, sibling]
                 try await streamTitleAndCloudName(into: canvas, cloud: newCloud, sibling: sibling)
@@ -102,22 +103,28 @@ final class CanvasProcessor {
             
         }
     }
-    func rebuildClouds(context: ModelContext) async {
+    func rebuildClouds(context: ModelContext, pile: Pile? = nil) async {
         guard case .available = generalModel.availability else { return }
         error = nil
         userFacingErrorMessage = nil
-        
+
         do {
-            let canvases = try context.fetch(FetchDescriptor<Canvas>())
+            // Delete existing clouds scoped to the pile before rebuilding
+            let existingClouds = try context.fetch(FetchDescriptor<Cloud>())
+            let scopedClouds = pile == nil ? existingClouds : existingClouds.filter { $0.pile === pile }
+            for cloud in scopedClouds { context.delete(cloud) }
+            try context.save()
+
+            let allCanvases = try context.fetch(FetchDescriptor<Canvas>())
+            let canvases = (pile == nil ? allCanvases : allCanvases.filter { $0.pile === pile })
                 .sorted { $0.createdOn < $1.createdOn }
-            
+
             for canvas in canvases {
                 await processCanvas(canvas, context: context)
             }
         } catch {
             self.error = error
             setUserFacingErrorMessage(from: error, operation: "rebuild clouds")
-            
         }
     }
     
@@ -253,32 +260,36 @@ final class CanvasProcessor {
     }
     
     // Returns which of the three cases applies to the incoming canvas.
+    // Scoped to the canvas's pile so clouds and canvases from other piles are ignored.
     private func determineAssignment(for canvas: Canvas, context: ModelContext) throws -> CloudAssignment {
         let canvasTags = Set(canvas.tags)
-        
+
         guard !canvasTags.isEmpty else { return .unassigned }
-        
+
+        let pile = canvas.pile
         let allClouds = try context.fetch(FetchDescriptor<Cloud>())
-        for cloud in allClouds {
+        let pileClouds = pile == nil ? allClouds : allClouds.filter { $0.pile === pile }
+        for cloud in pileClouds {
             if !canvasTags.intersection(Set(cloud.cloudTags)).isEmpty {
                 return .existingCloud(cloud)
             }
         }
-        
-        // No existing cloud matched. Look for an unassigned canvas to pair with.
+
+        // No existing cloud matched. Look for an unassigned canvas in the same pile to pair with.
         let allCanvases = try context.fetch(FetchDescriptor<Canvas>())
-        let unassigned = allCanvases.filter {
+        let pileCanvases = pile == nil ? allCanvases : allCanvases.filter { $0.pile === pile }
+        let unassigned = pileCanvases.filter {
             $0.cloud == nil       // not already in a cloud
             && $0 !== canvas      // not the same canvas we're processing
             && !$0.tags.isEmpty   // has tags to compare against
         }
-        
+
         for other in unassigned {
             if !canvasTags.intersection(Set(other.tags)).isEmpty {
                 return .newCloud(other)
             }
         }
-        
+
         return .unassigned
     }
     
