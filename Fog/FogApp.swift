@@ -18,6 +18,7 @@ struct FogApp: App {
     var body: some Scene {
         WindowGroup {
             FogRootView()
+                
                 .environment(processor)
                 .accentColor(accentColor)
             // eg tint is null if user says no here keep accent as is

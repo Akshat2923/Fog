@@ -16,10 +16,16 @@ struct FogRootView: View {
     var body: some View {
         if !hasCompletedOnboarding && allCanvases.isEmpty {
             WelcomeView(onComplete: { hasCompletedOnboarding = true })
+                .fontDesign(.monospaced)
+                .fontWidth(.compressed)
         } else if processor.isModelAvailable {
             CloudsView()
+                .fontDesign(.monospaced)
+                .fontWidth(.compressed)
         } else {
             CanvasLibraryView()
+                .fontDesign(.monospaced)
+                .fontWidth(.compressed)
         }
     }
 }
