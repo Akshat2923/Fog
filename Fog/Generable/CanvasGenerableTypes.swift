@@ -39,7 +39,10 @@ struct CloudName {
 
 @Generable
 struct CloudSummary {
-    @Guide(description: "A brief 2–3 sentence summary highlighting the shared themes, key ideas, and connections across all the notes in this collection.")
+    // Reasoning field first — lets the model identify themes before writing the summary.
+    var reasoning: String
+
+    @Guide(description: "A 2–3 sentence summary of the shared themes and key ideas across all notes.")
     let summary: String
 }
 
@@ -51,7 +54,7 @@ struct CloudGroupName {
 
 @Generable
 struct AppGreeting {
-    @Guide(description: "A short, warm, context-aware greeting for someone opening their note app. 5–10 words. Reference the time of day or the themes of their notes naturally, like 'Good morning, ready to pick up where you left off?' or 'Looks like a creative afternoon ahead.' Never use the word 'notes'. Never start with 'Hello' or 'Hi'.")
+    @Guide(description: "A warm greeting, 5–10 words, like 'Good morning, ready to pick up where you left off?' or 'Looks like a creative afternoon ahead.'")
     let greeting: String
 }
 
@@ -60,4 +63,13 @@ struct AppGreeting {
 struct CloudGroupDescription {
     @Guide(description: "One sentence describing what these groups have in common, like 'Collections centered on health and fitness.'")
     let groupDescription: String
+}
+
+@Generable
+struct SearchAnswer {
+    // Reasoning field first — gives the model space to think before committing to an answer.
+    var reasoning: String
+
+    @Guide(description: "The final answer only, 1–3 sentences. Reference canvas titles when helpful.")
+    var answer: String
 }

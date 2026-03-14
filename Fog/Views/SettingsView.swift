@@ -44,7 +44,7 @@ struct SettingsView: View {
                         .accessibilityLabel("Background intensity")
                     }
                     Toggle("Rainbow Rave", isOn: $rainbowRave)
-
+                    
                 }
                 
                 Section(header: Text("Data"), footer: Text("This permanently deletes all canvases and clouds.")) {
@@ -65,8 +65,10 @@ struct SettingsView: View {
                 isPresented: $showDeleteConfirm,
             ) {
                 Button("Delete Everything", role: .destructive) {
-                    try? context.delete(model: Canvas.self)
                     try? context.delete(model: Cloud.self)
+                    try? context.save()
+                    try? context.delete(model: Canvas.self)
+                    try? context.save()
                     dismiss()
                 }
             } message: {

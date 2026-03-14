@@ -47,11 +47,11 @@ struct FogToolbar: ViewModifier {
                                 showSortSheet = true
                             } label: {
                                 VStack(alignment: .leading) {
-                                    Text("Filtered by")
+                                    Text("Filtered by Canvases")
                                         .font(.caption2)
-                                    Text("Canvases")
-                                        .font(.caption2)
-                                    Text(sortOrder.shortLabel)
+//                                    Text("Canvases")
+//                                        .font(.caption2)
+                                    Text(sortOrder.rawValue)
                                         .font(.caption2)
                                         .foregroundStyle(.secondary)
                                 }
@@ -61,6 +61,7 @@ struct FogToolbar: ViewModifier {
                                     .font(.caption2)
                                     .foregroundStyle(Color.accentColor)
                             }
+
                             .matchedTransitionSource(id: "sort", in: namespace)
 
                         }
@@ -79,7 +80,7 @@ struct FogToolbar: ViewModifier {
                 
                 DefaultToolbarItem(kind: .search, placement: .bottomBar)
                 
-                ToolbarSpacer(.flexible, placement: .bottomBar)
+//                ToolbarSpacer(.flexible, placement: .bottomBar)
                 
                 ToolbarItem(placement: .bottomBar) {
                     Button {
@@ -106,6 +107,8 @@ struct FogToolbar: ViewModifier {
                     .navigationTransition(.zoom(sourceID: "settings", in: namespace))
                     .presentationDetents([.medium, .large])
             }
+            .sensoryFeedback(.selection, trigger: filterByCanvases)
+
     }
 }
 extension View {

@@ -45,6 +45,9 @@ final class CanvasProcessor {
     private(set) var isGeneratingGreeting = false
     private var greetingSignature: String = ""
     
+    private(set) var searchAnswer: String = ""
+    private(set) var isGeneratingSearchAnswer = false
+    
     func checkAvailability() {
         switch SystemLanguageModel.default.availability {
         case .available:
@@ -141,17 +144,18 @@ final class CanvasProcessor {
         
         defer { isStreamingSummary = false }
         
-        // Convert each canvas's AttributedString to plain String for the prompt.
         let canvasTexts = cloud.canvases
             .enumerated()
-            .map { "Canvas \($0.offset + 1): \(String($0.element.text.characters.prefix(200)))" }
-            .joined(separator: "\n\n")
+            .map { "\($0.offset + 1). \(String($0.element.text.characters.prefix(150)))" }
+            .joined(separator: "\n")
         
         do {
             let session = LanguageModelSession(
                 instructions: Instructions {
-                    "You are an expert summarizer."
-                    "Summarize the common themes across these notes in 2-3 sentences."
+                    "You are a note summarizer."
+                    "1. Read all canvas notes."
+                    "2. Identify shared themes and key ideas. Write them in `reasoning`."
+                    "3. Write a 2–3 sentence summary in `summary`."
                 }
             )
             
@@ -159,7 +163,7 @@ final class CanvasProcessor {
                 generating: CloudSummary.self,
                 includeSchemaInPrompt: false
             ) {
-                "This cloud contains \(cloud.canvases.count) canvases:"
+                "Canvas notes (\(cloud.canvases.count) total):"
                 canvasTexts
             }
             for try await partial in stream {
@@ -212,10 +216,11 @@ final class CanvasProcessor {
         do {
             let session = LanguageModelSession(
                 instructions: Instructions {
-                    "You are a warm, minimal writing companion."
-                    "Generate a single short greeting for someone opening their note app."
-                    "It should feel personal and context-aware, referencing the time of day or their note themes."
-                    "Keep it to 5–10 words. No punctuation at the end. Never say 'notes' or 'Hi' or 'Hello'."
+                    "You are a warm writing companion."
+                    "1. Read the time of day and note themes."
+                    "2. Write a single greeting, 5–10 words, in `greeting`."
+                    "3. Reference the time of day or a theme naturally."
+                    "4. No punctuation at the end. Never use the word 'notes'. Never start with 'Hi' or 'Hello'."
                 }
             )
             
@@ -238,6 +243,62 @@ final class CanvasProcessor {
             greetingSignature = signature
         } catch {
             // Silently fall back — greeting is non-critical
+        }
+    }
+    
+    func answerSearchQuery(_ query: String, canvases: [Canvas]) async {
+        guard case .available = generalModel.availability else {
+            searchAnswer = "Apple Intelligence is not available on this device."
+            return
+        }
+        
+        searchAnswer = ""
+        isGeneratingSearchAnswer = true
+        defer { isGeneratingSearchAnswer = false }
+        
+        // Keep context lean: up to 8 canvases, 150 chars each to stay well within context window.
+        let relevantCanvases = canvases.prefix(8)
+        let canvasContext = relevantCanvases
+            .enumerated()
+            .map { i, canvas in
+                let title = canvas.title ?? "Untitled"
+                let snippet = String(canvas.text.characters.prefix(150))
+                return "\(i + 1). \"\(title)\": \(snippet)"
+            }
+            .joined(separator: "\n")
+        
+        do {
+            let session = LanguageModelSession(
+                instructions: Instructions {
+                    "You are a notes search assistant. Provide a relevant answer using only the provided canvas notes."
+                    "1. Read the search query."
+                    "2. Find relevant canvas notes."
+                    "3. Write your reasoning in `reasoning`."
+                    "4. Write a concise answer, 1–3 sentences, in `answer`."
+                }
+            )
+            
+            let stream = session.streamResponse(
+                generating: SearchAnswer.self,
+                includeSchemaInPrompt: false
+            ) {
+                "Question: \(query)"
+                "Canvas notes:"
+                canvasContext
+            }
+            
+            for try await partial in stream {
+                if let answer = partial.content.answer {
+                    searchAnswer = answer
+                }
+            }
+            
+            // Handle "not found" in code rather than relying on the model to decide.
+            if searchAnswer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                searchAnswer = "Nothing in your canvases seems to answer that."
+            }
+        } catch {
+            searchAnswer = "Couldn't generate an answer right now. Try again."
         }
     }
     
@@ -286,14 +347,13 @@ final class CanvasProcessor {
     private func streamTitle(into canvas: Canvas) async throws {
         let session = LanguageModelSession(
             instructions: Instructions {
-                "You are an expert note organizer."
-                "Generate a short title that captures the main topic of the note."
+                "You are a note organizer."
+                "Generate a 2–5 word title for the note below."
             }
         )
-        let text = String(canvas.text.characters)
+        let text = String(canvas.text.characters.prefix(400))
         let stream = session.streamResponse(generating: CanvasTitle.self) {
-            "Here is the canvas to title:"
-            text
+            "Note: \(text)"
         }
         for try await partial in stream {
             if let title = partial.content.title {
@@ -304,7 +364,7 @@ final class CanvasProcessor {
     
     // Used only when a new cloud is being formed — sibling provides naming context.
     private func streamTitleAndCloudName(into canvas: Canvas, cloud: Cloud, sibling: Canvas) async throws {
-        let canvasText = String(canvas.text.characters)
+        let canvasText = String(canvas.text.characters.prefix(400))
         let siblingText = String(sibling.text.characters.prefix(200))
         
         // Session 1 — title only
@@ -344,15 +404,16 @@ final class CanvasProcessor {
     // Generates tags using the specialized content tagging model.
     // This is always a separate session because it uses a different model entirely.
     private func generateTags(for canvas: Canvas) async throws -> [String] {
-        let text = String(canvas.text.characters)
+        let fullText = String(canvas.text.characters)
+        let text = String(fullText.prefix(400))
         let session = LanguageModelSession(
             model: taggingModel,
-            instructions: text.count < 100
+            instructions: fullText.count < 100
             ? "Provide the 3 most significant topics."
             : "Provide the 3 most significant topics and 3 most significant objects."
         )
         let response = try await session.respond(
-            to: String(canvas.text.characters),
+            to: text,
             generating: CanvasTags.self
         )
         
@@ -497,12 +558,14 @@ final class CanvasProcessor {
         // Session 1 — name only
         let nameSession = LanguageModelSession(
             instructions: Instructions {
-                "You are an expert note organizer."
-                "Generate a short group name, 1-3 words, for a collection of related note groups."
+                "You are a note organizer."
+                "1. Read the shared tags and cloud names."
+                "2. Find their common theme."
+                "3. Write a 1–3 word group name in `name`."
             }
         )
         let nameStream = nameSession.streamResponse(generating: CloudGroupName.self) {
-            "These note groups share these tags: \(sharedTagsText)"
+            "Shared tags: \(sharedTagsText)"
             cloudSummaries
         }
         for try await partial in nameStream {
@@ -514,8 +577,9 @@ final class CanvasProcessor {
         // Session 2 — description only, can reference the name we just generated
         let descSession = LanguageModelSession(
             instructions: Instructions {
-                "You are an expert note organizer."
-                "Write one sentence describing what a collection of note groups have in common."
+                "You are a note organizer."
+                "1. Read the group name and shared tags."
+                "2. Write one sentence in `groupDescription` describing what these groups have in common."
             }
         )
         let descStream = descSession.streamResponse(generating: CloudGroupDescription.self) {

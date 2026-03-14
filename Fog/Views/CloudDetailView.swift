@@ -91,7 +91,7 @@ private struct StreamingSummarySection: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Label("Summary", systemImage: "sparkles")
+            Label("Summary", systemImage: "bubbles.and.sparkles")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
             
